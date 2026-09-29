@@ -1,6 +1,6 @@
 # xai-phishing-detection
 
-This repository contains the codebase for the project. Follow the instructions below to clone, run, and contribute to the repository.
+This repository contains the codebase for the project. Follow the instructions below to clone and run the project.
 
 ---
 
