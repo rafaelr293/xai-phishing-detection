@@ -1,5 +1,7 @@
 import hashlib
+import io
 import re
+import zipfile
 from email import policy
 from email.message import Message
 from email.parser import BytesParser
@@ -8,6 +10,35 @@ from pathlib import Path
 from app.domain.schemas import AttachmentData, ParsedEmail
 
 URL_PATTERN = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+MAX_ARCHIVE_MEMBERS = 100
+
+
+def _detected_type(payload: bytes) -> str:
+    if payload.startswith(b"%PDF-"):
+        return "pdf"
+    if payload.startswith(b"MZ"):
+        return "windows_executable"
+    if payload.startswith(b"PK\x03\x04"):
+        return "zip_archive"
+    if payload.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if payload.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if payload.startswith(b"GIF8"):
+        return "gif"
+    if payload.startswith(b"{\\rtf"):
+        return "rtf"
+    return "unknown"
+
+
+def _archive_members(payload: bytes, detected_type: str) -> list[str]:
+    if detected_type != "zip_archive":
+        return []
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            return [member.filename for member in archive.infolist()[:MAX_ARCHIVE_MEMBERS]]
+    except (OSError, zipfile.BadZipFile):
+        return []
 
 
 def _part_text(part: Message) -> str:
@@ -37,12 +68,15 @@ def parse_eml(path: Path, max_size_bytes: int) -> ParsedEmail:
         filename = part.get_filename()
         payload = part.get_payload(decode=True) or b""
         if filename or part.get_content_disposition() == "attachment":
+            detected_type = _detected_type(payload)
             attachments.append(
                 AttachmentData(
                     filename=filename or "unnamed",
                     content_type=part.get_content_type(),
                     size_bytes=len(payload),
                     sha256=hashlib.sha256(payload).hexdigest(),
+                    detected_type=detected_type,
+                    archive_members=_archive_members(payload, detected_type),
                 )
             )
         elif part.get_content_type() == "text/plain":

@@ -23,7 +23,10 @@
 
     <section class="toolbar">
         <input type="search" id="search" placeholder="Search sender or subject">
-      <button type="button" class="btn btn-primary" id="scan-button">Scan inbox</button>
+        <div class="toolbar-actions">
+          <button type="button" class="btn btn-primary" id="scan-button">Scan inbox</button>
+          <button type="button" class="btn" id="rerun-analysis-button">Rerun analysis</button>
+        </div>
     </section>
 
     <div class="layout">
@@ -59,7 +62,8 @@
             <h4 class="evidence-title" id="d-evidence-title"></h4>
             <ul class="evidence-list" id="d-evidence"></ul>
 
-            <button class="btn btn-primary" id="view-email-button" type="button" disabled>View full email content</button>
+            <button class="btn btn-primary" id="view-analysis-button" type="button" disabled>View full analysis</button>
+            <button class="btn" id="view-email-button" type="button" disabled>View full email content</button>
             <button class="btn">Draft notification to recipient</button>
         </aside>
 
@@ -88,6 +92,19 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="analysis-modal" hidden>
+    <section class="analysis-modal" role="dialog" aria-modal="true" aria-labelledby="analysis-modal-title">
+      <header class="modal-header">
+        <div>
+          <span class="detail-label">DETECTOR ANALYSIS</span>
+          <h2 id="analysis-modal-title"></h2>
+        </div>
+        <button class="modal-close" id="close-analysis-modal" type="button" aria-label="Close full analysis">×</button>
+      </header>
+      <div id="analysis-content"></div>
+    </section>
+  </div>
+
 <script>
 const API_BASE = "http://localhost:8000";
 const levelLabel = {
@@ -100,7 +117,11 @@ const levelLabel = {
 const body = document.getElementById("email-body");
 const search = document.getElementById("search");
 const scanButton = document.getElementById("scan-button");
+const rerunAnalysisButton = document.getElementById("rerun-analysis-button");
+const viewAnalysisButton = document.getElementById("view-analysis-button");
 const viewEmailButton = document.getElementById("view-email-button");
+const analysisModal = document.getElementById("analysis-modal");
+const closeAnalysisModal = document.getElementById("close-analysis-modal");
 const emailModal = document.getElementById("email-modal");
 const closeEmailModal = document.getElementById("close-email-modal");
 let emails = [];
@@ -212,6 +233,7 @@ function showDetail(email) {
   const level = getLevel(email);
   selectedEmail = email;
   selectedId = email.id;
+  viewAnalysisButton.disabled = !email.id;
   viewEmailButton.disabled = !email.id;
   document.getElementById("detail-header").className = "detail-header " + level;
   document.getElementById("d-label").textContent = levelLabel[level];
@@ -223,6 +245,60 @@ function showDetail(email) {
     ? email.evidence.map(indicator => `<li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")
     : "<li><span>No detector evidence available yet.</span></li>";
   renderTable();
+}
+
+function detectorLabel(name) {
+  return String(name || "unknown_detector")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function renderAnalysis(email) {
+  const analyses = email.analyses || [];
+  const detectorResults = analyses.flatMap(analysis => analysis.detectors || []);
+  document.getElementById("analysis-modal-title").textContent = email.subject || "(No subject)";
+
+  if (!detectorResults.length) {
+    document.getElementById("analysis-content").innerHTML = '<p class="analysis-empty">No detector analysis is available for this email yet.</p>';
+    return;
+  }
+
+  document.getElementById("analysis-content").innerHTML = detectorResults.map(detector => {
+    const indicators = detector.indicators || [];
+    const evidence = JSON.stringify(detector.evidence || {}, null, 2);
+    const indicatorMarkup = indicators.length
+      ? `<ul class="analysis-indicators">${indicators.map(indicator => `
+          <li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")}</ul>`
+      : '<p class="analysis-empty">No indicators returned.</p>';
+
+    return `<section class="detector-section">
+      <div class="detector-heading">
+        <h3>${escapeHtml(detectorLabel(detector.detector))}</h3>
+        <span class="detector-status">${escapeHtml(detector.status || "UNKNOWN")}</span>
+      </div>
+      <div class="detector-metrics">
+        <span>Risk score <strong>${detector.risk_score ?? "—"}</strong></span>
+        <span>Confidence <strong>${detector.confidence === null || detector.confidence === undefined ? "—" : `${Math.round(detector.confidence * 100)}%`}</strong></span>
+      </div>
+      ${detector.error_message ? `<p class="analysis-error">${escapeHtml(detector.error_message)}</p>` : ""}
+      <h4>Indicators</h4>
+      ${indicatorMarkup}
+      <h4>Technical evidence</h4>
+      <pre class="analysis-evidence">${escapeHtml(evidence)}</pre>
+    </section>`;
+  }).join("");
+}
+
+function openAnalysisModal() {
+  if (!selectedEmail || !selectedEmail.id) return;
+  renderAnalysis(selectedEmail);
+  analysisModal.hidden = false;
+  closeAnalysisModal.focus();
+}
+
+function closeAnalysisViewer() {
+  analysisModal.hidden = true;
+  viewAnalysisButton.focus();
 }
 
 function renderEmailContent(email) {
@@ -294,6 +370,7 @@ async function loadEmails() {
 async function scanInbox() {
   setStatus("Scanning...");
   scanButton.disabled = true;
+  rerunAnalysisButton.disabled = true;
   try {
     const response = await fetch(`${API_BASE}/api/ingestion/scan`, { method: "POST" });
     if (!response.ok) throw new Error("Unable to scan inbox");
@@ -302,17 +379,42 @@ async function scanInbox() {
     setStatus("Retry scan");
   } finally {
     scanButton.disabled = false;
+    rerunAnalysisButton.disabled = false;
+  }
+}
+
+async function rerunAnalysis() {
+  rerunAnalysisButton.textContent = "Rerunning...";
+  rerunAnalysisButton.disabled = true;
+  scanButton.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/api/ingestion/rerun-analysis`, { method: "POST" });
+    if (!response.ok) throw new Error("Unable to rerun analysis");
+    await loadEmails();
+    rerunAnalysisButton.textContent = "Rerun analysis";
+  } catch (error) {
+    rerunAnalysisButton.textContent = "Retry analysis";
+  } finally {
+    rerunAnalysisButton.disabled = false;
+    scanButton.disabled = false;
   }
 }
 
 search.addEventListener("input", renderTable);
 scanButton.addEventListener("click", scanInbox);
+rerunAnalysisButton.addEventListener("click", rerunAnalysis);
+viewAnalysisButton.addEventListener("click", openAnalysisModal);
 viewEmailButton.addEventListener("click", openEmailModal);
+closeAnalysisModal.addEventListener("click", closeAnalysisViewer);
 closeEmailModal.addEventListener("click", closeEmailViewer);
+analysisModal.addEventListener("click", event => {
+  if (event.target === analysisModal) closeAnalysisViewer();
+});
 emailModal.addEventListener("click", event => {
   if (event.target === emailModal) closeEmailViewer();
 });
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !analysisModal.hidden) closeAnalysisViewer();
   if (event.key === "Escape" && !emailModal.hidden) closeEmailViewer();
 });
 

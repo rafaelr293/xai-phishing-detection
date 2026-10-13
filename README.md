@@ -47,7 +47,19 @@ The API is available at `http://localhost:8000`. Check `http://localhost:8000/ap
 curl -X POST http://localhost:8000/api/ingestion/scan
 ```
 
+To rerun the configured detector modules against every already-ingested email whose source file is still available:
+
+```bash
+curl -X POST http://localhost:8000/api/ingestion/rerun-analysis
+```
+
 Put `.eml` files in `data/inbox` before scanning. The backend records content hashes so scanning the same file again does not create a duplicate email.
+
+Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments. Detector results are persisted with the email analysis record.
+
+Attachment confidence starts at `0.95` when attachments are present and decreases when verification checks fail, such as an unknown signature, unrecognized extension, or signature mismatch. It is capped at a minimum of `0.50` and is not a calibrated probability.
+
+Unknown attachment types add a low-severity risk indicator and a small `15`-point contribution, while known malicious signatures and executable extensions receive substantially higher scores.
 
 ### 5. View the static frontend
 
