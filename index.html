@@ -15,14 +15,15 @@
 <main class="container">
 
     <section class="level-container">
-        <div class="level"><span class="dot dot-critical"></span>Critical<strong>2</strong></div>
-        <div class="level"><span class="dot dot-high"></span>High<strong>1</strong></div>
-        <div class="level"><span class="dot dot-medium"></span>Medium<strong>1</strong></div>
-        <div class="level"><span class="dot dot-low"></span>Low<strong>2</strong></div>
+        <div class="level"><span class="dot dot-critical"></span>Critical<strong id="count-critical">0</strong></div>
+        <div class="level"><span class="dot dot-high"></span>High<strong id="count-high">0</strong></div>
+        <div class="level"><span class="dot dot-medium"></span>Medium<strong id="count-medium">0</strong></div>
+        <div class="level"><span class="dot dot-low"></span>Low<strong id="count-low">0</strong></div>
     </section>
 
     <section class="toolbar">
         <input type="search" id="search" placeholder="Search sender or subject">
+      <button type="button" class="btn btn-primary" id="scan-button">Scan inbox</button>
     </section>
 
     <div class="layout">
@@ -66,85 +67,149 @@
 </main>
 
 <script>
-const emails = [
-  { score: 94, level: "critical", sender: "security-alert@paypal-verify.com", subject: "Urgent: Your account will be suspended in 24 hours", time: "09:14", status: "✓ Notified",
-    evidence: [
-      ["DMARC authentication failed", 20],
-      ["Urgency language detected", 15],
-      ["Sender domain mimics paypal.com", 15],
-      ["URL redirects through 4 domains", 15],
-      ["XGBoost: high phishing probability", 15],
-      ["Visual match to PayPal login (94%)", 20],
-      ["OCR detected credential form", 10]
-    ]},
-  { score: 88, level: "critical", sender: "it-support@internal-helpdesk.com", subject: "Password expiry notice - reset within 12h", time: "Aug 21", status: "✓ Notified",
-    evidence: [
-      ["Sender domain not in allowlist", 25],
-      ["Urgency language detected", 15],
-      ["Link text does not match destination", 25],
-      ["XGBoost: high phishing probability", 23]
-    ]},
-  { score: 71, level: "high", sender: "hr@company-benefits-update.net", subject: "Action required: Confirm your benefits enrollment", time: "08:47", status: "",
-    evidence: [
-      ["Lookalike domain of internal HR", 25],
-      ["Action-required language", 15],
-      ["XGBoost: elevated phishing probability", 31]
-    ]},
-  { score: 52, level: "medium", sender: "invoices@vendor-billing-portal.com", subject: "Invoice #48213 overdue - payment required", time: "Aug 21", status: "",
-    evidence: [
-      ["Unknown sender", 20],
-      ["Payment urgency detected", 17],
-      ["Attachment type: HTML", 15]
-    ]},
-  { score: 8, level: "low", sender: "notifications@github.com", subject: "[GitHub] New sign-in to your account", time: "07:30", status: "",
-    evidence: [["SPF/DKIM/DMARC pass", 0], ["Known sender", 8]] },
-  { score: 3, level: "low", sender: "newsletter@techweekly.io", subject: "This week in tech: 5 stories worth your time", time: "Aug 21", status: "",
-    evidence: [["Bulk mail headers present", 3]] }
-];
-
-const levelLabel = { critical: "CRITICAL RISK", high: "HIGH RISK", medium: "MEDIUM RISK", low: "LOW RISK" };
+const API_BASE = "http://localhost:8000";
+const levelLabel = {
+  critical: "CRITICAL RISK",
+  high: "HIGH RISK",
+  medium: "MEDIUM RISK",
+  low: "LOW RISK",
+  pending: "ANALYSIS PENDING"
+};
 const body = document.getElementById("email-body");
-let selected = null;
+const search = document.getElementById("search");
+const scanButton = document.getElementById("scan-button");
+let emails = [];
+let selectedId = null;
+
+function getLevel(email) {
+  return email.level || "pending";
+}
+
+function getScore(email) {
+  return email.score === null || email.score === undefined ? "—" : email.score;
+}
+
+function getTime(email) {
+  if (!email.time) return "—";
+  return new Date(email.time).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function setStatus(message) {
+  scanButton.textContent = message;
+}
+
+function updateCounts() {
+  ["critical", "high", "medium", "low"].forEach(level => {
+    document.getElementById(`count-${level}`).textContent = emails.filter(email => getLevel(email) === level).length;
+  });
+}
+
+function renderEmpty(message) {
+  body.innerHTML = `<tr><td colspan="5" class="table-message">${message}</td></tr>`;
+}
 
 function renderTable() {
-  const q = document.getElementById("search").value.toLowerCase();
+  const q = search.value.toLowerCase();
   const rows = emails
-    .filter(e => e.sender.toLowerCase().includes(q) || e.subject.toLowerCase().includes(q))
-    .sort((a, b) => b.score - a.score);
+    .filter(e => (e.sender || "").toLowerCase().includes(q) || (e.subject || "").toLowerCase().includes(q))
+    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+
+  if (!rows.length) {
+    renderEmpty(q ? "No emails match this search." : "No emails have been ingested yet.");
+    return;
+  }
 
   body.innerHTML = "";
   rows.forEach(e => {
+    const level = getLevel(e);
     const tr = document.createElement("tr");
-    if (e === selected) tr.classList.add("selected");
+    if (e.id === selectedId) tr.classList.add("selected");
     tr.innerHTML = `
-      <td class="score score-${e.level}"><span class="dot dot-${e.level}"></span>${e.score}</td>
-      <td class="sender">${e.sender}</td>
-      <td class="subject">${e.subject}</td>
-      <td class="time">${e.time}</td>
-      <td class="status">${e.status}</td>`;
-    tr.addEventListener("click", () => showDetail(e));
+      <td class="score score-${level}"><span class="dot dot-${level}"></span>${getScore(e)}</td>
+      <td class="sender">${escapeHtml(e.sender || "Unknown sender")}</td>
+      <td class="subject">${escapeHtml(e.subject || "(No subject)")}</td>
+      <td class="time">${getTime(e)}</td>
+      <td class="status">${e.status || "PENDING"}</td>`;
+    tr.addEventListener("click", () => loadDetail(e));
     body.appendChild(tr);
   });
 }
 
-function showDetail(e) {
-  selected = e;
-  document.getElementById("detail-header").className = "detail-header " + e.level;
-  document.getElementById("d-label").textContent = levelLabel[e.level];
-  document.getElementById("d-subject").textContent = e.subject;
-  document.getElementById("d-sender").textContent = e.sender;
-  document.getElementById("d-score").textContent = e.score;
-  document.getElementById("d-evidence-title").textContent = `EVIDENCE (${e.evidence.length})`;
-  document.getElementById("d-evidence").innerHTML = e.evidence
-    .map(([text, pts]) => `<li><span>${text}</span><span class="pts">+${pts}</span></li>`)
-    .join("");
+function showDetail(email) {
+  const level = getLevel(email);
+  selectedId = email.id;
+  document.getElementById("detail-header").className = "detail-header " + level;
+  document.getElementById("d-label").textContent = levelLabel[level];
+  document.getElementById("d-subject").textContent = email.subject || "(No subject)";
+  document.getElementById("d-sender").textContent = email.sender || "Unknown sender";
+  document.getElementById("d-score").textContent = getScore(email);
+  document.getElementById("d-evidence-title").textContent = `EVIDENCE (${(email.evidence || []).length})`;
+  document.getElementById("d-evidence").innerHTML = (email.evidence || []).length
+    ? email.evidence.map(indicator => `<li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")
+    : "<li><span>No detector evidence available yet.</span></li>";
   renderTable();
 }
 
-document.getElementById("search").addEventListener("input", renderTable);
+async function loadDetail(email) {
+  showDetail(email);
+  try {
+    const response = await fetch(`${API_BASE}/api/emails/${email.id}`);
+    if (!response.ok) throw new Error("Unable to load email details");
+    showDetail(await response.json());
+  } catch (error) {
+    setStatus("API unavailable");
+  }
+}
 
-// default to the highest-risk email
-showDetail([...emails].sort((a, b) => b.score - a.score)[0]);
+async function loadEmails() {
+  setStatus("Loading...");
+  try {
+    const response = await fetch(`${API_BASE}/api/emails`);
+    if (!response.ok) throw new Error("Unable to load emails");
+    const data = await response.json();
+    emails = data.items || [];
+    updateCounts();
+    renderTable();
+    if (emails.length) {
+      const first = [...emails].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))[0];
+      await loadDetail(first);
+    } else {
+      showDetail({ id: null, subject: "No email selected", sender: "", evidence: [], status: "EMPTY" });
+    }
+    setStatus("Scan inbox");
+  } catch (error) {
+    renderEmpty("Unable to reach the analysis API.");
+    setStatus("Retry scan");
+  }
+}
+
+async function scanInbox() {
+  setStatus("Scanning...");
+  scanButton.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/api/ingestion/scan`, { method: "POST" });
+    if (!response.ok) throw new Error("Unable to scan inbox");
+    await loadEmails();
+  } catch (error) {
+    setStatus("Retry scan");
+  } finally {
+    scanButton.disabled = false;
+  }
+}
+
+search.addEventListener("input", renderTable);
+scanButton.addEventListener("click", scanInbox);
+
+loadEmails();
 </script>
 
 </body>

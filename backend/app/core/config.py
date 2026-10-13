@@ -11,7 +11,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://phishing:phishing@localhost:5432/phishing_detection"
     ingestion_directory: Path = Path("./data/inbox")
     max_eml_size_bytes: int = 10 * 1024 * 1024
-    cors_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
+    cors_origins: list[str] = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]
     enable_polling: bool = False
     poll_interval_seconds: int = 30
 

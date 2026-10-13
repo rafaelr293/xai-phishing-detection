@@ -80,6 +80,7 @@ body {
     font-size: 12px;
 }
 .toolbar input { width: 240px; }
+.toolbar .btn { width: auto; margin: 0; }
 
 /* Two-column layout */
 .layout {
@@ -116,12 +117,14 @@ body {
 .email-table tbody tr { cursor: pointer; }
 .email-table tbody tr:hover { background: #1a1c22; }
 .email-table tbody tr.selected { background: #1a1c22; }
+.table-message { padding: 24px 12px; color: var(--muted); text-align: center; }
 
 .score { font-weight: 500; }
 .score-critical { color: var(--critical); }
 .score-high     { color: var(--high); }
 .score-medium   { color: var(--medium); }
 .score-low      { color: var(--low); }
+.score-pending  { color: var(--muted); }
 
 .sender { font-family: monospace; font-size: 11px; color: #bbb; }
 .status { font-size: 11px; color: var(--cyan); }
