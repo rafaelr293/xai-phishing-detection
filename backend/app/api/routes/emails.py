@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -13,7 +14,10 @@ router = APIRouter(prefix="/api/emails", tags=["emails"])
 
 
 def _summary(email: Email) -> dict:
-    analysis = email.analyses[0] if email.analyses else None
+    analysis = max(
+        email.analyses,
+        key=lambda item: item.updated_at or item.created_at or datetime.min.replace(tzinfo=timezone.utc),
+    ) if email.analyses else None
     evidence = []
     if analysis:
         for result in analysis.detector_results:
@@ -81,6 +85,7 @@ def get_email(email_id: UUID, db: Session = Depends(get_db)) -> dict:
                         "blocked_requests": traversal.blocked_requests,
                         "screenshot_path": traversal.screenshot_path,
                         "screenshot_sha256": traversal.screenshot_sha256,
+                        "visual_analysis": traversal.visual_analysis,
                         "error_message": traversal.error_message,
                     }
                     for traversal in url_record.traversals
@@ -95,6 +100,9 @@ def get_email(email_id: UUID, db: Session = Depends(get_db)) -> dict:
                 "status": analysis.status.value,
                 "risk_score": analysis.risk_score,
                 "risk_level": analysis.risk_level,
+                "aggregation_details": analysis.aggregation_details,
+                "technical_explanation": analysis.technical_explanation,
+                "user_explanation": analysis.user_explanation,
                 "detectors": [
                     {
                         "detector": result.detector,

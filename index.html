@@ -253,6 +253,28 @@ function detectorLabel(name) {
     .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
+function urlRecordForIndicator(email, indicator) {
+  const urlId = indicator?.evidence?.url_id;
+  return (email.url_records || []).find(record => record.id === urlId);
+}
+
+function renderVisualAnalysis(visualAnalysis) {
+  if (!visualAnalysis || !Object.keys(visualAnalysis).length) return "";
+  const indicators = visualAnalysis.indicators || [];
+  const evidence = JSON.stringify(visualAnalysis.evidence || {}, null, 2);
+  const indicatorMarkup = indicators.length
+    ? `<ul class="analysis-indicators">${indicators.map(indicator => `
+        <li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")}</ul>`
+    : '<p class="analysis-empty">No visual indicators returned.</p>';
+  return `<div class="traversal-visual-analysis">
+    <div class="detector-heading"><h4>Image analysis</h4><span class="detector-status">${escapeHtml(visualAnalysis.status || "UNKNOWN")}</span></div>
+    <div class="detector-metrics"><span>Risk score <strong>${visualAnalysis.risk_score ?? "—"}</strong></span></div>
+    ${visualAnalysis.error_message ? `<p class="analysis-error">${escapeHtml(visualAnalysis.error_message)}</p>` : ""}
+    ${indicatorMarkup}
+    <pre class="analysis-evidence">${escapeHtml(evidence)}</pre>
+  </div>`;
+}
+
 function renderTraversalSection(email) {
   const traversals = (email.url_records || []).flatMap(record =>
     (record.traversals || []).map(traversal => ({ ...traversal, source_url: record.url }))
@@ -289,6 +311,7 @@ function renderTraversalSection(email) {
       ${blockedRequests}
       <h4>Captured final webpage</h4>
       ${screenshot}
+      ${renderVisualAnalysis(traversal.visual_analysis)}
     </article>`;
   }).join("");
 
@@ -311,7 +334,20 @@ function renderAnalysis(email) {
     const evidence = JSON.stringify(detector.evidence || {}, null, 2);
     const indicatorMarkup = indicators.length
       ? `<ul class="analysis-indicators">${indicators.map(indicator => `
-          <li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")}</ul>`
+          <li>
+            <span>
+              ${escapeHtml(indicator.description || indicator.type)}
+              ${detector.detector === "url_risk" && indicator.evidence?.url ? `<span class="indicator-url">${escapeHtml(indicator.evidence.url)}</span>` : ""}
+            </span>
+            ${detector.detector === "url_risk" && indicator.evidence?.url_id ? (() => {
+              const record = urlRecordForIndicator(email, indicator);
+              const activeTraversal = record?.traversals?.find(traversal => ["PENDING", "RUNNING"].includes(traversal.status));
+              const completedTraversal = record?.traversals?.some(traversal => traversal.status === "COMPLETED");
+              const label = activeTraversal ? `${activeTraversal.status.toLowerCase()}...` : completedTraversal ? "traverse again" : "traverse URL";
+              const buttonClass = completedTraversal ? "btn btn-small" : "btn btn-primary btn-small";
+              return `<button type="button" class="${buttonClass} traverse-url-button" data-email-id="${escapeHtml(email.id)}" data-url-id="${escapeHtml(indicator.evidence.url_id)}" ${activeTraversal ? "disabled" : ""}>${label}</button>`;
+            })() : `<span class="pts">${escapeHtml(indicator.severity || "")}</span>`}
+          </li>`).join("")}</ul>`
       : '<p class="analysis-empty">No indicators returned.</p>';
 
     return `<section class="detector-section">
@@ -338,6 +374,9 @@ function renderAnalysis(email) {
   }
 
   document.getElementById("analysis-content").innerHTML = detectorMarkup + traversalMarkup;
+  document.querySelectorAll(".traverse-url-button").forEach(button => {
+    button.addEventListener("click", () => startTraversal(button.dataset.emailId, button.dataset.urlId));
+  });
 }
 
 function openAnalysisModal() {
@@ -390,9 +429,38 @@ async function loadDetail(email) {
   try {
     const response = await fetch(`${API_BASE}/api/emails/${email.id}`);
     if (!response.ok) throw new Error("Unable to load email details");
-    showDetail(await response.json());
+    selectedEmail = await response.json();
+    showDetail(selectedEmail);
+    if (!analysisModal.hidden) renderAnalysis(selectedEmail);
   } catch (error) {
     setStatus("API unavailable");
+  }
+}
+
+async function startTraversal(emailId, urlId) {
+  try {
+    const response = await fetch(`${API_BASE}/api/emails/${emailId}/urls/${urlId}/traverse`, { method: "POST" });
+    if (!response.ok) throw new Error((await response.json()).detail || "Unable to start URL traversal");
+    const traversal = await response.json();
+    await loadDetail(selectedEmail);
+    pollTraversal(traversal.traversal_id);
+  } catch (error) {
+    setStatus(error.message || "Unable to start traversal");
+  }
+}
+
+async function pollTraversal(traversalId) {
+  try {
+    const response = await fetch(`${API_BASE}/api/emails/traversals/${traversalId}`);
+    if (!response.ok) throw new Error("Unable to poll URL traversal");
+    const traversal = await response.json();
+    if (["PENDING", "RUNNING"].includes(traversal.status)) {
+      window.setTimeout(() => pollTraversal(traversalId), 1500);
+      return;
+    }
+    await loadDetail(selectedEmail);
+  } catch (error) {
+    setStatus(error.message || "Unable to update traversal");
   }
 }
 
@@ -435,6 +503,11 @@ async function scanInbox() {
 }
 
 async function rerunAnalysis() {
+  const confirmed = window.confirm(
+    "Rerun analysis will delete all stored emails, analyses, traversal results, and screenshots, then rebuild everything from the .eml files in data/inbox. Continue?"
+  );
+  if (!confirmed) return;
+
   rerunAnalysisButton.textContent = "Rerunning...";
   rerunAnalysisButton.disabled = true;
   scanButton.disabled = true;

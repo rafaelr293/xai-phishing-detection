@@ -1,5 +1,4 @@
-from datetime import datetime
-from pathlib import Path
+import shutil
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,12 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.analysis.attachment import AttachmentAnalyzer
 from app.analysis.email_nlp import EmailNLPDetector
+from app.analysis.explainability import ExplainabilityEngine
+from app.analysis.risk_engine import RiskAssessmentEngine
 from app.analysis.url_risk import URLRiskDetector
 from app.analysis.visual import VisualDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
-from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus
+from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus, URLTraversal
 from app.domain.schemas import AnalysisContext, RerunResponse, ScanResponse
 from app.ingestion.directory_ingestor import DirectoryIngestor
 
@@ -35,9 +36,12 @@ if settings.enable_visual_analysis:
         artifact_directory=settings.artifact_directory,
     ))
 orchestrator = AnalysisOrchestrator(detectors)
+risk_engine = RiskAssessmentEngine()
+explainability_engine = ExplainabilityEngine()
 
 
 def _run_analysis(db: Session, email: Email, parsed):
+    _ensure_url_records(email, parsed.urls)
     context = AnalysisContext(
         email=parsed,
         email_id=email.id,
@@ -61,15 +65,21 @@ def _run_analysis(db: Session, email: Email, parsed):
             url_record = url_records.get(str(result.get("url", "")).strip().lower())
             if url_record is not None:
                 url_record.selected_for_traversal = str(result.get("label", "")).lower() == "phishing"
+        for indicator in url_result.indicators:
+            url_record = url_records.get(str(indicator.evidence.get("url", "")).strip().lower())
+            if url_record is not None:
+                indicator.evidence["url_id"] = str(url_record.id)
 
-    analysis_status = ProcessingStatus.FAILED if any(result.status == "FAILED" for result in analysis_results) else ProcessingStatus.COMPLETED
-    scores = [result.risk_score for result in analysis_results if result.risk_score is not None]
-    risk_score = max(scores) if scores else None
-    risk_level = next(
-        (result.evidence.get("risk_level") for result in analysis_results if result.evidence.get("risk_level")),
-        None,
+    assessment = risk_engine.assess(analysis_results, [detector.name for detector in detectors])
+    explanations = explainability_engine.explain(assessment)
+    analysis = EmailAnalysis(
+        status=ProcessingStatus(assessment.status),
+        risk_score=assessment.final_score,
+        risk_level=assessment.risk_level,
+        aggregation_details=assessment.model_dump(),
+        technical_explanation=explanations["technical"],
+        user_explanation=explanations["user"],
     )
-    analysis = EmailAnalysis(status=analysis_status, risk_score=risk_score, risk_level=risk_level)
     for result in analysis_results:
         analysis.detector_results.append(
             DetectorResult(
@@ -85,11 +95,21 @@ def _run_analysis(db: Session, email: Email, parsed):
     return analysis
 
 
+def _ensure_url_records(email: Email, urls: list[str]) -> None:
+    existing_urls = {record.url.strip().lower() for record in email.url_records}
+    for url in urls:
+        if url.strip().lower() not in existing_urls:
+            email.url_records.append(EmailURL(url=url))
+
+
 def _refresh_analysis(db: Session, email: Email, analysis: EmailAnalysis, parsed) -> None:
     refreshed_analysis = _run_analysis(db, email, parsed)
     analysis.status = refreshed_analysis.status
     analysis.risk_score = refreshed_analysis.risk_score
     analysis.risk_level = refreshed_analysis.risk_level
+    analysis.aggregation_details = refreshed_analysis.aggregation_details
+    analysis.technical_explanation = refreshed_analysis.technical_explanation
+    analysis.user_explanation = refreshed_analysis.user_explanation
     current_results = {result.detector: result for result in analysis.detector_results}
     for result in refreshed_analysis.detector_results:
         detector_result = current_results.pop(result.detector, None)
@@ -124,6 +144,7 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
             parsed = ingestor.parse(path)
             existing = db.query(Email).filter(Email.content_hash == parsed.content_hash).first()
             if existing:
+                _ensure_url_records(existing, parsed.urls)
                 pending_analysis = next((analysis for analysis in existing.analyses if analysis.status == ProcessingStatus.PENDING), None)
                 if pending_analysis:
                     _refresh_analysis(db, existing, pending_analysis, parsed)
@@ -143,9 +164,9 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
                     received_at=parsed.received_at,
                     url_records=[EmailURL(url=url) for url in parsed.urls],
                 )
-                email.analyses.append(_run_analysis(db, email, parsed))
                 db.add(email)
                 db.flush()
+                email.analyses.append(_run_analysis(db, email, parsed))
                 imported += 1
         except (OSError, ValueError):
             failed += 1
@@ -160,23 +181,26 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
 
 @router.post("/rerun-analysis", response_model=RerunResponse)
 def rerun_analysis(db: Session = Depends(get_db)) -> RerunResponse:
-    emails = db.query(Email).all()
-    rerun = 0
-    failed = 0
     settings = get_settings()
-    ingestor = DirectoryIngestor(settings)
-
-    for email in emails:
-        try:
-            parsed = ingestor.parse(Path(email.source_path))
-            analysis = max(email.analyses, key=lambda item: item.created_at or datetime.min)
-            _refresh_analysis(db, email, analysis, parsed)
-            rerun += 1
-        except (OSError, ValueError):
-            failed += 1
-
+    db.query(DetectorResult).delete(synchronize_session=False)
+    db.query(URLTraversal).delete(synchronize_session=False)
+    db.query(EmailURL).delete(synchronize_session=False)
+    db.query(EmailAnalysis).delete(synchronize_session=False)
+    db.query(Email).delete(synchronize_session=False)
+    db.query(IngestionJob).delete(synchronize_session=False)
     db.commit()
-    return RerunResponse(status="COMPLETED" if failed == 0 else "PARTIAL", requested=len(emails), rerun=rerun, failed=failed)
+
+    screenshot_directory = settings.artifact_directory / "screenshots"
+    shutil.rmtree(screenshot_directory, ignore_errors=True)
+    screenshot_directory.mkdir(parents=True, exist_ok=True)
+
+    scan = scan_directory(db)
+    return RerunResponse(
+        status=scan.status,
+        requested=scan.discovered,
+        rerun=scan.imported,
+        failed=scan.failed,
+    )
 
 
 @router.get("/jobs/{job_id}")

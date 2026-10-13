@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.base import SessionLocal, get_db
-from app.db.models import DetectorResult, EmailURL, ProcessingStatus, URLTraversal
+from app.db.models import EmailURL, ProcessingStatus, URLTraversal
 from app.domain.schemas import DetectorResultData, URLTraversalResponse
 from app.browser_worker.client import BrowserWorkerClient
 from app.visual_worker_client import VisualWorkerClient
@@ -68,23 +68,7 @@ def _run_visual_analysis(db: Session, traversal: URLTraversal, settings) -> None
             error_message=str(exc),
         )
 
-    email = traversal.email_url.email
-    if not email.analyses:
-        return
-    analysis = max(email.analyses, key=lambda item: item.created_at or datetime.min)
-    detector_result = next(
-        (result for result in analysis.detector_results if result.detector == result_data.detector),
-        None,
-    )
-    if detector_result is None:
-        detector_result = DetectorResult(detector=result_data.detector)
-        analysis.detector_results.append(detector_result)
-    detector_result.status = ProcessingStatus(result_data.status)
-    detector_result.risk_score = result_data.risk_score
-    detector_result.confidence = result_data.confidence
-    detector_result.indicators = [indicator.model_dump() for indicator in result_data.indicators]
-    detector_result.evidence = result_data.evidence
-    detector_result.error_message = result_data.error_message
+    traversal.visual_analysis = result_data.model_dump()
 
 
 @router.post("/{email_id}/urls/{url_id}/traverse", response_model=URLTraversalResponse, status_code=202)
@@ -121,6 +105,7 @@ def traverse_selected_url(
         blocked_requests=traversal.blocked_requests,
         screenshot_path=traversal.screenshot_path,
         screenshot_sha256=traversal.screenshot_sha256,
+        visual_analysis=traversal.visual_analysis,
         error_message=traversal.error_message,
     )
 
@@ -141,6 +126,7 @@ def get_traversal(traversal_id: UUID, db: Session = Depends(get_db)) -> URLTrave
         blocked_requests=traversal.blocked_requests,
         screenshot_path=traversal.screenshot_path,
         screenshot_sha256=traversal.screenshot_sha256,
+        visual_analysis=traversal.visual_analysis,
         error_message=traversal.error_message,
     )
 
