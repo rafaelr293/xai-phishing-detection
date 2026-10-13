@@ -344,7 +344,8 @@ function renderAnalysis(email) {
               const activeTraversal = record?.traversals?.find(traversal => ["PENDING", "RUNNING"].includes(traversal.status));
               const completedTraversal = record?.traversals?.some(traversal => traversal.status === "COMPLETED");
               const label = activeTraversal ? `${activeTraversal.status.toLowerCase()}...` : completedTraversal ? "traverse again" : "traverse URL";
-              return `<button type="button" class="btn btn-small traverse-url-button" data-email-id="${escapeHtml(email.id)}" data-url-id="${escapeHtml(indicator.evidence.url_id)}" ${activeTraversal ? "disabled" : ""}>${label}</button>`;
+              const buttonClass = completedTraversal ? "btn btn-small" : "btn btn-primary btn-small";
+              return `<button type="button" class="${buttonClass} traverse-url-button" data-email-id="${escapeHtml(email.id)}" data-url-id="${escapeHtml(indicator.evidence.url_id)}" ${activeTraversal ? "disabled" : ""}>${label}</button>`;
             })() : `<span class="pts">${escapeHtml(indicator.severity || "")}</span>`}
           </li>`).join("")}</ul>`
       : '<p class="analysis-empty">No indicators returned.</p>';
