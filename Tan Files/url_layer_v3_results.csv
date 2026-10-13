@@ -1,0 +1,43 @@
+protocol,direction,features,slice,n,phish%,AUC,PR-AUC,recall@FPR1%,TPR@t,FPR@t
+merged grouped CV,PhiUSIIL,H (host only),all,231747,41.8,0.892,0.898,0.629,,
+merged grouped CV,PhiUSIIL,H (host only),bare,204365,34.0,0.888,0.873,0.636,,
+merged grouped CV,external,H (host only),all,86289,56.6,0.89,0.939,0.687,,
+merged grouped CV,external,H (host only),bare,52456,28.6,0.98,0.974,0.908,,
+merged grouped CV,PhiUSIIL,"H-noTLD (host, no TLD)",all,231747,41.8,0.854,0.865,0.519,,
+merged grouped CV,PhiUSIIL,"H-noTLD (host, no TLD)",bare,204365,34.0,0.847,0.829,0.527,,
+merged grouped CV,external,"H-noTLD (host, no TLD)",all,86289,56.6,0.905,0.937,0.474,,
+merged grouped CV,external,"H-noTLD (host, no TLD)",bare,52456,28.6,0.962,0.95,0.84,,
+merged grouped CV,PhiUSIIL,HP (host+path),all,231747,41.8,0.922,0.929,0.742,,
+merged grouped CV,PhiUSIIL,HP (host+path),bare,204365,34.0,0.891,0.876,0.64,,
+merged grouped CV,external,HP (host+path),all,86289,56.6,0.994,0.996,0.972,,
+merged grouped CV,external,HP (host+path),bare,52456,28.6,0.979,0.973,0.909,,
+leave-one-source-out,PhiUSIIL (in-source val),H (host only),all,40634,50.3,0.927,0.947,0.754,0.754,0.01
+leave-one-source-out,PhiUSIIL -> external,H (host only),all,86289,56.6,0.927,0.952,0.642,0.709,0.034
+leave-one-source-out,PhiUSIIL -> external,H (host only),unseen domains,43437,28.5,0.836,0.777,0.359,0.595,0.038
+leave-one-source-out,PhiUSIIL -> external,H (host only),bare,52456,28.6,0.969,0.959,0.894,0.909,0.034
+leave-one-source-out,PhiUSIIL -> external,H (host only),bare+unseen,34424,9.7,0.875,0.703,0.564,0.635,0.038
+leave-one-source-out,external (in-source val),H (host only),all,9137,38.4,0.918,0.925,0.742,0.742,0.009
+leave-one-source-out,external -> PhiUSIIL,H (host only),all,231747,41.8,0.816,0.804,0.0,0.591,0.042
+leave-one-source-out,external -> PhiUSIIL,H (host only),unseen domains,184448,31.2,0.712,0.622,0.0,0.333,0.027
+leave-one-source-out,external -> PhiUSIIL,H (host only),bare,204365,34.0,0.798,0.743,0.0,0.566,0.042
+leave-one-source-out,external -> PhiUSIIL,H (host only),bare+unseen,168268,24.6,0.678,0.511,0.0,0.276,0.027
+leave-one-source-out,PhiUSIIL (in-source val),"H-noTLD (host, no TLD)",all,40634,50.3,0.9,0.929,0.68,0.68,0.01
+leave-one-source-out,PhiUSIIL -> external,"H-noTLD (host, no TLD)",all,86289,56.6,0.883,0.927,0.608,0.609,0.01
+leave-one-source-out,PhiUSIIL -> external,"H-noTLD (host, no TLD)",unseen domains,43437,28.5,0.701,0.648,0.364,0.371,0.011
+leave-one-source-out,PhiUSIIL -> external,"H-noTLD (host, no TLD)",bare,52456,28.6,0.965,0.957,0.891,0.892,0.01
+leave-one-source-out,PhiUSIIL -> external,"H-noTLD (host, no TLD)",bare+unseen,34424,9.7,0.859,0.702,0.577,0.582,0.011
+leave-one-source-out,external (in-source val),"H-noTLD (host, no TLD)",all,9137,38.4,0.912,0.914,0.694,0.694,0.01
+leave-one-source-out,external -> PhiUSIIL,"H-noTLD (host, no TLD)",all,231747,41.8,0.796,0.791,0.0,0.583,0.041
+leave-one-source-out,external -> PhiUSIIL,"H-noTLD (host, no TLD)",unseen domains,184448,31.2,0.68,0.596,0.0,0.32,0.025
+leave-one-source-out,external -> PhiUSIIL,"H-noTLD (host, no TLD)",bare,204365,34.0,0.775,0.727,0.0,0.557,0.041
+leave-one-source-out,external -> PhiUSIIL,"H-noTLD (host, no TLD)",bare+unseen,168268,24.6,0.64,0.48,0.0,0.261,0.025
+leave-one-source-out,PhiUSIIL (in-source val),HP (host+path),all,40634,50.3,0.947,0.962,0.825,0.825,0.01
+leave-one-source-out,PhiUSIIL -> external,HP (host+path),all,86289,56.6,0.99,0.994,0.967,0.971,0.033
+leave-one-source-out,PhiUSIIL -> external,HP (host+path),unseen domains,43437,28.5,0.964,0.956,0.88,0.899,0.038
+leave-one-source-out,PhiUSIIL -> external,HP (host+path),bare,52456,28.6,0.967,0.958,0.892,0.907,0.033
+leave-one-source-out,PhiUSIIL -> external,HP (host+path),bare+unseen,34424,9.7,0.867,0.693,0.557,0.628,0.038
+leave-one-source-out,external (in-source val),HP (host+path),all,9137,38.4,0.992,0.992,0.964,0.964,0.01
+leave-one-source-out,external -> PhiUSIIL,HP (host+path),all,231747,41.8,0.839,0.837,0.0,0.7,0.055
+leave-one-source-out,external -> PhiUSIIL,HP (host+path),unseen domains,184448,31.2,0.745,0.699,0.0,0.498,0.04
+leave-one-source-out,external -> PhiUSIIL,HP (host+path),bare,204365,34.0,0.781,0.735,0.0,0.581,0.055
+leave-one-source-out,external -> PhiUSIIL,HP (host+path),bare+unseen,168268,24.6,0.648,0.5,0.0,0.302,0.04

@@ -1,0 +1,153 @@
+"""
+URL layer v3 — INFERENCE
+Nạp model đã lưu (models/url_pipeline.joblib), quét URL và xuất kết quả.
+
+Cách dùng:
+  # 1 URL
+  python URL_layer_inference.py --url "https://example.com/login"
+
+  # Nhiều URL
+  python URL_layer_inference.py --url "https://example.com" "http://192.0.2.1/login" "https://example.org/verify"
+
+  # Nhập trực tiếp trong terminal (mỗi URL một dòng, Enter trên dòng trống để scan)
+  python URL_layer_inference.py --interactive
+
+  # Từ file (mỗi dòng một URL; dòng trống và dòng bắt đầu bằng # bị bỏ qua)
+  python URL_layer_inference.py --file "urls_to_test.txt" --csv-out "url_scan_results.csv"
+
+Có thể kết hợp --url, --file và --interactive trong cùng một lệnh.
+Kết quả mỗi URL: nhãn phishing/legitimate, xác suất phishing, threshold và evidence
+(số subdomain, entropy hostname, độ dài path, các từ đáng ngờ...).
+"""
+
+import argparse
+import json
+import os
+import sys
+
+import joblib
+import pandas as pd
+
+from URL_Features import (apply_tld, build_feature_frame, canonicalize,
+                                matched_suspicious_words)
+
+DEFAULT_MODEL = os.path.join('models', 'url_pipeline.joblib')
+
+
+def load_pipeline(path):
+    if not os.path.exists(path):
+        sys.exit(f"Không tìm thấy model '{path}'. Hãy chạy URL_layer_train.py trước "
+                 f"hoặc chỉ đường dẫn bằng --model.")
+    return joblib.load(path)
+
+
+def scan_urls(urls, pipe, threshold=None):
+    """list[str] -> DataFrame, một dòng cho mỗi URL."""
+    t = float(pipe['threshold'] if threshold is None else threshold)
+    F = build_feature_frame(urls)
+    X = apply_tld(F[pipe['feature_cols']], pipe['tld_cats'])
+    proba = pipe['model'].predict_proba(X)[:, 1]
+
+    rows = []
+    for url, p, (_, f) in zip(urls, proba, F.iterrows()):
+        host_words, path_words = matched_suspicious_words(url)
+        rows.append({
+            'url': url,
+            'canonical': canonicalize(url),
+            'label': 'phishing' if p >= t else 'legitimate',
+            'phishing_probability': round(float(p), 4),
+            'threshold': round(t, 4),
+            'n_subdomains': int(f['n_subdomains']),
+            'host_entropy': round(float(f['host_entropy']), 3),
+            'host_len': int(f['host_len']),
+            'path_len': int(f['path_len']),
+            'is_ip_host': int(f['is_ip_host']),
+            'n_hyphens_host': int(f['n_hyphens_host']),
+            'tld': f['tld'],
+            'suspicious_words_host': ' '.join(host_words),
+            'suspicious_words_path': ' '.join(path_words),
+        })
+    return pd.DataFrame(rows)
+
+
+def read_urls_file(path):
+    if not os.path.exists(path):
+        sys.exit(f"Không tìm thấy file '{path}'.")
+    with open(path, encoding='utf-8-sig') as f:
+        return [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith('#')]
+
+
+def read_urls_interactive():
+    print("Dán từng URL, mỗi URL một dòng. Nhấn Enter trên dòng trống để bắt đầu scan.")
+    urls = []
+    while True:
+        try:
+            line = input('> ').strip()
+        except EOFError:
+            break
+        if not line:
+            break
+        urls.append(line)
+    return urls
+
+
+def print_report(res):
+    for _, r in res.iterrows():
+        mark = 'PHISHING  ' if r['label'] == 'phishing' else 'LEGITIMATE'
+        print("-" * 72)
+        print(f"[{mark}] p(phishing)={r['phishing_probability']:.4f}  "
+              f"threshold={r['threshold']:.4f}")
+        print(f"  URL            : {r['url']}")
+        print(f"  canonical      : {r['canonical']}")
+        print(f"  evidence       : subdomains={r['n_subdomains']}, "
+              f"host_entropy={r['host_entropy']}, host_len={r['host_len']}, "
+              f"path_len={r['path_len']}, tld='{r['tld']}', "
+              f"ip_host={'yes' if r['is_ip_host'] else 'no'}, hyphens_host={r['n_hyphens_host']}")
+        print(f"  suspicious word: host=[{r['suspicious_words_host'] or '-'}] "
+              f"path=[{r['suspicious_words_path'] or '-'}]")
+    print("-" * 72)
+    n_ph = int((res['label'] == 'phishing').sum())
+    print(f"Tổng: {len(res)} URL | phishing: {n_ph} | legitimate: {len(res) - n_ph}")
+
+
+def main():
+    ap = argparse.ArgumentParser(description="URL layer v3 — scan URL bằng model đã lưu")
+    ap.add_argument('--url', nargs='+', metavar='URL', help="một hoặc nhiều URL")
+    ap.add_argument('--file', help="file text, mỗi dòng một URL")
+    ap.add_argument('--interactive', action='store_true',
+                    help="nhập danh sách URL trực tiếp trong terminal")
+    ap.add_argument('--csv-out', help="lưu kết quả ra file CSV")
+    ap.add_argument('--json-out', help="lưu kết quả ra file JSON")
+    ap.add_argument('--model', default=DEFAULT_MODEL, help=f"mặc định: {DEFAULT_MODEL}")
+    ap.add_argument('--threshold', type=float, default=None,
+                    help="ghi đè threshold đã lưu cùng model (mặc định dùng threshold khi train)")
+    args = ap.parse_args()
+
+    if not (args.url or args.file or args.interactive):
+        ap.error("cần ít nhất một trong: --url, --file, --interactive")
+
+    urls = []
+    if args.url:
+        urls += [u.strip() for u in args.url if u.strip()]
+    if args.file:
+        urls += read_urls_file(args.file)
+    if args.interactive:
+        urls += read_urls_interactive()
+    if not urls:
+        sys.exit("Không có URL nào để scan.")
+
+    pipe = load_pipeline(args.model)
+    res = scan_urls(urls, pipe, args.threshold)
+    print_report(res)
+
+    if args.csv_out:
+        res.to_csv(args.csv_out, index=False, encoding='utf-8-sig')
+        print(f"Saved -> {args.csv_out}")
+    if args.json_out:
+        with open(args.json_out, 'w', encoding='utf-8') as f:
+            json.dump(res.to_dict(orient='records'), f, indent=2, ensure_ascii=False)
+        print(f"Saved -> {args.json_out}")
+
+
+if __name__ == '__main__':
+    main()
