@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.analysis.attachment import AttachmentAnalyzer
 from app.analysis.email_nlp import EmailNLPDetector
+from app.analysis.explainability import ExplainabilityEngine
+from app.analysis.risk_engine import RiskAssessmentEngine
 from app.analysis.url_risk import URLRiskDetector
 from app.analysis.visual import VisualDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
@@ -35,6 +37,8 @@ if settings.enable_visual_analysis:
         artifact_directory=settings.artifact_directory,
     ))
 orchestrator = AnalysisOrchestrator(detectors)
+risk_engine = RiskAssessmentEngine()
+explainability_engine = ExplainabilityEngine()
 
 
 def _run_analysis(db: Session, email: Email, parsed):
@@ -62,14 +66,16 @@ def _run_analysis(db: Session, email: Email, parsed):
             if url_record is not None:
                 url_record.selected_for_traversal = str(result.get("label", "")).lower() == "phishing"
 
-    analysis_status = ProcessingStatus.FAILED if any(result.status == "FAILED" for result in analysis_results) else ProcessingStatus.COMPLETED
-    scores = [result.risk_score for result in analysis_results if result.risk_score is not None]
-    risk_score = max(scores) if scores else None
-    risk_level = next(
-        (result.evidence.get("risk_level") for result in analysis_results if result.evidence.get("risk_level")),
-        None,
+    assessment = risk_engine.assess(analysis_results, [detector.name for detector in detectors])
+    explanations = explainability_engine.explain(assessment)
+    analysis = EmailAnalysis(
+        status=ProcessingStatus(assessment.status),
+        risk_score=assessment.final_score,
+        risk_level=assessment.risk_level,
+        aggregation_details=assessment.model_dump(),
+        technical_explanation=explanations["technical"],
+        user_explanation=explanations["user"],
     )
-    analysis = EmailAnalysis(status=analysis_status, risk_score=risk_score, risk_level=risk_level)
     for result in analysis_results:
         analysis.detector_results.append(
             DetectorResult(
@@ -90,6 +96,9 @@ def _refresh_analysis(db: Session, email: Email, analysis: EmailAnalysis, parsed
     analysis.status = refreshed_analysis.status
     analysis.risk_score = refreshed_analysis.risk_score
     analysis.risk_level = refreshed_analysis.risk_level
+    analysis.aggregation_details = refreshed_analysis.aggregation_details
+    analysis.technical_explanation = refreshed_analysis.technical_explanation
+    analysis.user_explanation = refreshed_analysis.user_explanation
     current_results = {result.detector: result for result in analysis.detector_results}
     for result in refreshed_analysis.detector_results:
         detector_result = current_results.pop(result.detector, None)

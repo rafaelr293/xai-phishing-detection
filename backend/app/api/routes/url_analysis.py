@@ -7,13 +7,17 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.analysis.explainability import ExplainabilityEngine
+from app.analysis.risk_engine import RiskAssessmentEngine
 from app.db.base import SessionLocal, get_db
-from app.db.models import DetectorResult, EmailURL, ProcessingStatus, URLTraversal
+from app.db.models import DetectorResult, EmailAnalysis, EmailURL, ProcessingStatus, URLTraversal
 from app.domain.schemas import DetectorResultData, URLTraversalResponse
 from app.browser_worker.client import BrowserWorkerClient
 from app.visual_worker_client import VisualWorkerClient
 
 router = APIRouter(prefix="/api/emails", tags=["url-analysis"])
+risk_engine = RiskAssessmentEngine()
+explainability_engine = ExplainabilityEngine()
 
 
 def _run_traversal_job(traversal_id: UUID) -> None:
@@ -85,6 +89,30 @@ def _run_visual_analysis(db: Session, traversal: URLTraversal, settings) -> None
     detector_result.indicators = [indicator.model_dump() for indicator in result_data.indicators]
     detector_result.evidence = result_data.evidence
     detector_result.error_message = result_data.error_message
+    _recalculate_analysis_summary(analysis)
+
+
+def _recalculate_analysis_summary(analysis: EmailAnalysis) -> None:
+    results = [
+        DetectorResultData(
+            detector=result.detector,
+            status=result.status.value,
+            risk_score=result.risk_score,
+            confidence=result.confidence,
+            indicators=result.indicators,
+            evidence=result.evidence,
+            error_message=result.error_message,
+        )
+        for result in analysis.detector_results
+    ]
+    assessment = risk_engine.assess(results, [result.detector for result in results])
+    explanations = explainability_engine.explain(assessment)
+    analysis.status = ProcessingStatus(assessment.status)
+    analysis.risk_score = assessment.final_score
+    analysis.risk_level = assessment.risk_level
+    analysis.aggregation_details = assessment.model_dump()
+    analysis.technical_explanation = explanations["technical"]
+    analysis.user_explanation = explanations["user"]
 
 
 @router.post("/{email_id}/urls/{url_id}/traverse", response_model=URLTraversalResponse, status_code=202)
