@@ -16,6 +16,14 @@ git clone https://github.com/rafaelr293/xai-phishing-detection.git
 
 ### 2. Start PostgreSQL
 
+Use Python 3.13 for local development. Install it with `pyenv` or the official Python installer, then create the environment with:
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[test,ml]'
+```
+
 Install Docker Desktop, then run:
 
 ```bash
@@ -27,9 +35,6 @@ docker compose up -d postgres
 From the project root:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[test]'
 cp .env.example .env
 ```
 
