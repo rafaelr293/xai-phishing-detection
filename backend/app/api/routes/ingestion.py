@@ -12,7 +12,7 @@ from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus
-from app.domain.schemas import RerunResponse, ScanResponse
+from app.domain.schemas import AnalysisContext, RerunResponse, ScanResponse
 from app.ingestion.directory_ingestor import DirectoryIngestor
 
 router = APIRouter(prefix="/api/ingestion", tags=["ingestion"])
@@ -31,8 +31,31 @@ if settings.enable_url_risk:
 orchestrator = AnalysisOrchestrator(detectors)
 
 
-def _attachment_analysis(parsed):
-    analysis_results = orchestrator.analyze(parsed)
+def _run_analysis(db: Session, email: Email, parsed):
+    context = AnalysisContext(
+        email=parsed,
+        email_id=email.id,
+        urls=[
+            {
+                "id": url_record.id,
+                "url": url_record.url,
+                "selected_for_traversal": url_record.selected_for_traversal,
+                "traversals": [],
+            }
+            for url_record in email.url_records
+        ],
+    )
+    analysis_results = orchestrator.analyze(context)
+    url_result = next((result for result in analysis_results if result.detector == "url_risk"), None)
+    if url_result is not None:
+        url_records = {url_record.url.strip().lower(): url_record for url_record in email.url_records}
+        for url_record in email.url_records:
+            url_record.selected_for_traversal = False
+        for result in url_result.evidence.get("url_results", []):
+            url_record = url_records.get(str(result.get("url", "")).strip().lower())
+            if url_record is not None:
+                url_record.selected_for_traversal = str(result.get("label", "")).lower() == "phishing"
+
     analysis_status = ProcessingStatus.FAILED if any(result.status == "FAILED" for result in analysis_results) else ProcessingStatus.COMPLETED
     scores = [result.risk_score for result in analysis_results if result.risk_score is not None]
     risk_score = max(scores) if scores else None
@@ -56,8 +79,8 @@ def _attachment_analysis(parsed):
     return analysis
 
 
-def _refresh_analysis(db: Session, analysis: EmailAnalysis, parsed) -> None:
-    refreshed_analysis = _attachment_analysis(parsed)
+def _refresh_analysis(db: Session, email: Email, analysis: EmailAnalysis, parsed) -> None:
+    refreshed_analysis = _run_analysis(db, email, parsed)
     analysis.status = refreshed_analysis.status
     analysis.risk_score = refreshed_analysis.risk_score
     analysis.risk_level = refreshed_analysis.risk_level
@@ -97,7 +120,7 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
             if existing:
                 pending_analysis = next((analysis for analysis in existing.analyses if analysis.status == ProcessingStatus.PENDING), None)
                 if pending_analysis:
-                    _refresh_analysis(db, pending_analysis, parsed)
+                    _refresh_analysis(db, existing, pending_analysis, parsed)
                 skipped += 1
             else:
                 email = Email(
@@ -114,7 +137,7 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
                     received_at=parsed.received_at,
                     url_records=[EmailURL(url=url) for url in parsed.urls],
                 )
-                email.analyses.append(_attachment_analysis(parsed))
+                email.analyses.append(_run_analysis(db, email, parsed))
                 db.add(email)
                 db.flush()
                 imported += 1
@@ -141,7 +164,7 @@ def rerun_analysis(db: Session = Depends(get_db)) -> RerunResponse:
         try:
             parsed = ingestor.parse(Path(email.source_path))
             analysis = max(email.analyses, key=lambda item: item.created_at or datetime.min)
-            _refresh_analysis(db, analysis, parsed)
+            _refresh_analysis(db, email, analysis, parsed)
             rerun += 1
         except (OSError, ValueError):
             failed += 1
