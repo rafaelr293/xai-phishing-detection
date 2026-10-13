@@ -1,6 +1,6 @@
 # xai-phishing-detection
 
-This repository contains the codebase for the project. Follow the instructions below to clone and run the project.
+This repository contains the static SOC dashboard and the FastAPI backend foundation for the explainable phishing detection platform.
 
 ---
 
@@ -14,15 +14,50 @@ Open your terminal or command prompt and run:
 git clone https://github.com/rafaelr293/xai-phishing-detection.git
 ```
 
-### 2. View the Project Locally
+### 2. Start PostgreSQL
+
+Install Docker Desktop, then run:
+
+```bash
+docker compose up -d postgres
+```
+
+### 3. Install backend dependencies
+
+From the project root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[test]'
+cp .env.example .env
+```
+
+### 4. Run the backend
+
+```bash
+alembic revision --autogenerate -m "initial schema"
+alembic upgrade head
+uvicorn app.main:app --app-dir backend --reload
+```
+
+The API is available at `http://localhost:8000`. Check `http://localhost:8000/api/health` and trigger an inbox scan with:
+
+```bash
+curl -X POST http://localhost:8000/api/ingestion/scan
+```
+
+Put `.eml` files in `data/inbox` before scanning. The backend records content hashes so scanning the same file again does not create a duplicate email.
+
+### 5. View the static frontend
 
 You can open `index.html` directly in your browser:
 
 - Double-click `index.html` in your file explorer, or
 - Start a simple local server:
   ```bash
-  python -m http.server 8000
+  python -m http.server 8080
   ```
-  Then visit `http://localhost:8000` in your web browser.
+  Then visit `http://localhost:8080` in your web browser.
 
 ---

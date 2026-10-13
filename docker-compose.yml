@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: phishing
+      POSTGRES_PASSWORD: phishing
+      POSTGRES_DB: phishing_detection
+    ports:
+      - "5432:5432"
+    volumes:
+      - phishing-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  phishing-postgres-data:
