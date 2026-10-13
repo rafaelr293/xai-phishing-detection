@@ -6,83 +6,117 @@ This repository contains the static SOC dashboard and the FastAPI backend founda
 
 ## Getting Started
 
-### 1. Clone the Repository
+### Prerequisites
 
-Open your terminal or command prompt and run:
+- Docker Desktop with Docker Compose
+- Git
+- Python 3.13 only if you want to run the static frontend server or backend tests locally
+
+### 1. Clone and enter the repository
 
 ```bash
 git clone https://github.com/rafaelr293/xai-phishing-detection.git
+cd xai-phishing-detection
 ```
 
-### 2. Start PostgreSQL
+### 2. Add email files
 
-Use Python 3.13 for local development. Install it with `pyenv` or the official Python installer, then create the environment with:
+Place `.eml` files in `data/inbox`. The scanner reads that directory from the API container. The repository includes model files under `Tan Files`; no `.env` file is required for the Docker Compose setup.
+
+### 3. Start the backend stack
+
+From the repository root:
 
 ```bash
-python3.13 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[test,ml]'
+docker compose up -d --build
 ```
 
-Install Docker Desktop, then run:
+This starts PostgreSQL, the FastAPI API, the isolated browser worker, and the PyTorch visual worker. The API container applies all Alembic migrations automatically before starting.
+
+Check that the API is ready:
 
 ```bash
-docker compose up -d postgres
+curl http://localhost:8000/api/health
+curl http://localhost:8000/api/readiness
 ```
 
-### 3. Install backend dependencies
+Both endpoints should return `{"status":"ok"}` or `{"status":"ready"}`.
 
-From the project root:
+### 4. Start the dashboard
+
+In a second terminal, from the repository root:
 
 ```bash
-cp .env.example .env
+python3 -m http.server 8080
 ```
 
-### 4. Run the backend
+Open <http://localhost:8080>. The dashboard uses the API at <http://localhost:8000>.
 
-```bash
-alembic revision --autogenerate -m "initial schema"
-alembic upgrade head
-uvicorn app.main:app --app-dir backend --reload
-```
+### 5. Scan the inbox
 
-The API is available at `http://localhost:8000`. Check `http://localhost:8000/api/health` and trigger an inbox scan with:
+Trigger an initial scan after placing `.eml` files in `data/inbox`:
 
 ```bash
 curl -X POST http://localhost:8000/api/ingestion/scan
 ```
 
-To rebuild the analysis database from the current `.eml` files, use the rerun endpoint. It deletes stored emails, analyses, URL records, traversal jobs, ingestion jobs, and screenshot artifacts before scanning `data/inbox` again:
+The same email content is not imported twice because the backend stores a content hash.
+
+### 6. Rerun from scratch
+
+The dashboard’s **Rerun analysis** button asks for confirmation. The endpoint permanently deletes stored emails, analyses, detector results, URL records, traversal jobs, ingestion jobs, and files under `data/artifacts/screenshots`, then imports and analyzes the current `.eml` files again:
 
 ```bash
 curl -X POST http://localhost:8000/api/ingestion/rerun-analysis
 ```
 
-URL traversal runs in the isolated browser worker. Build and start it with `docker compose up -d --build api browser-worker`. A URL must first be marked `selected_for_traversal` by the URL-risk module before `POST /api/emails/{email_id}/urls/{url_id}/traverse` creates a background job. Poll `GET /api/emails/traversals/{traversal_id}` for completion. Redirects and blocked requests are stored in PostgreSQL; screenshots are stored under `data/artifacts/screenshots` and can be retrieved through the traversal screenshot endpoint.
+Use this after changing detector or model behavior when stale database results must not remain.
 
-When a traversal completes, the API calls the internal visual worker with the captured screenshot. Visual detector results are persisted with the email analysis; a visual-worker failure does not erase the completed traversal result.
+### 7. Traverse a selected URL
 
-Visual analysis runs in a separate PyTorch worker. Build it with `docker compose build visual-worker`; its internal health endpoint is `/health` and its prediction endpoint is `/predict`. The API-to-worker job integration is the next step; the worker is isolated now so PyTorch is not installed in the API image.
+The URL-risk detector marks phishing-like URLs as `selected_for_traversal`. Traversal remains manually triggered from the full analysis menu. The dashboard sends:
 
-Put `.eml` files in `data/inbox` before scanning. The backend records content hashes so scanning the same file again does not create a duplicate email.
+```text
+POST /api/emails/{email_id}/urls/{url_id}/traverse
+```
 
-Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments. Detector results are persisted with the email analysis record.
+The browser worker follows the URL, records redirects and blocked requests, and captures a screenshot. Poll the returned traversal ID with:
 
-The Email/NLP adapter is available behind `ENABLE_EMAIL_NLP`. Enable it only in an environment matching the serialized model dependencies; the current teammate artifact was serialized with scikit-learn `1.9.0` and should be installed with `pip install -e '.[ml]'` under the project’s Python 3.13 environment.
+```text
+GET /api/emails/traversals/{traversal_id}
+```
 
-Attachment confidence starts at `0.95` when attachments are present and decreases when verification checks fail, such as an unknown signature, unrecognized extension, or signature mismatch. It is capped at a minimum of `0.50` and is not a calibrated probability.
+When traversal completes, the API automatically sends the screenshot to the visual worker. Visual results are persisted on that specific traversal and shown after the dashboard refreshes.
 
-Unknown attachment types add a low-severity risk indicator and a small `15`-point contribution, while known malicious signatures and executable extensions receive substantially higher scores.
+### Troubleshooting and shutdown
 
-### 5. View the static frontend
+View service logs with:
 
-You can open `index.html` directly in your browser:
+```bash
+docker compose logs -f api browser-worker visual-worker postgres
+```
 
-- Double-click `index.html` in your file explorer, or
-- Start a simple local server:
-  ```bash
-  python -m http.server 8080
-  ```
-  Then visit `http://localhost:8080` in your web browser.
+Stop containers while preserving the PostgreSQL volume:
+
+```bash
+docker compose down
+```
+
+Stop containers and delete the PostgreSQL volume as well:
+
+```bash
+docker compose down -v
+```
+
+For local backend tests, install the development dependencies with Python 3.13:
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[test,ml]'
+pytest -q
+```
+
+Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments.
 
 ---
