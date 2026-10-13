@@ -7,6 +7,7 @@ SCRIPT_EXTENSIONS = {".js", ".jse", ".vbs", ".vbe", ".ps1", ".bat", ".cmd", ".ws
 MACRO_EXTENSIONS = {".docm", ".dotm", ".xlsm", ".xltm", ".pptm", ".ppsm"}
 WEB_EXTENSIONS = {".html", ".htm", ".svg"}
 SAFE_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".txt", ".csv"}
+RECOGNIZED_EXTENSIONS = HIGH_RISK_EXTENSIONS | SCRIPT_EXTENSIONS | MACRO_EXTENSIONS | WEB_EXTENSIONS | SAFE_EXTENSIONS | {".zip", ".docx", ".xlsx", ".pptx", ".rtf"}
 
 
 def _indicator(indicator_type: str, description: str, severity: str, evidence: dict) -> Indicator:
@@ -38,11 +39,25 @@ class AttachmentAnalyzer:
 
         indicators: list[Indicator] = []
         score = 0
+        confidence_penalty = 0.0
+        verification_failures: list[dict] = []
         for attachment in email.attachments:
             filename = attachment.filename.strip()
             path = PurePath(filename)
             extension = path.suffix.lower()
             suffixes = [suffix.lower() for suffix in path.suffixes]
+
+            if extension not in RECOGNIZED_EXTENSIONS:
+                confidence_penalty += 0.15
+                verification_failures.append(
+                    {"type": "unrecognized_extension", "filename": filename, "extension": extension or "none"}
+                )
+
+            if attachment.detected_type == "unknown":
+                confidence_penalty += 0.10
+                verification_failures.append(
+                    {"type": "unknown_signature", "filename": filename}
+                )
 
             if extension in HIGH_RISK_EXTENSIONS:
                 score += 75
@@ -105,6 +120,15 @@ class AttachmentAnalyzer:
             }.get(extension)
             if expected_type and attachment.detected_type not in {expected_type, "unknown"}:
                 score += 55
+                confidence_penalty += 0.15
+                verification_failures.append(
+                    {
+                        "type": "signature_mismatch",
+                        "filename": filename,
+                        "expected_type": expected_type,
+                        "detected_type": attachment.detected_type,
+                    }
+                )
                 indicators.append(
                     _indicator(
                         "file_signature_mismatch",
@@ -157,14 +181,16 @@ class AttachmentAnalyzer:
                 )
 
         score = min(score, 100)
+        confidence = max(0.50, round(0.95 - min(confidence_penalty, 0.45), 2))
         return DetectorResultData(
             detector=self.name,
             status="COMPLETED",
             risk_score=score,
-            confidence=0.95,
+            confidence=confidence,
             indicators=indicators,
             evidence={
                 "attachment_count": len(email.attachments),
                 "risk_level": _risk_level(score),
+                "verification_failures": verification_failures,
             },
         )

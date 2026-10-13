@@ -51,6 +51,8 @@ Put `.eml` files in `data/inbox` before scanning. The backend records content ha
 
 Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments. Detector results are persisted with the email analysis record.
 
+Attachment confidence starts at `0.95` when attachments are present and decreases when verification checks fail, such as an unknown signature, unrecognized extension, or signature mismatch. It is capped at a minimum of `0.50` and is not a calibrated probability.
+
 ### 5. View the static frontend
 
 You can open `index.html` directly in your browser:
