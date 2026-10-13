@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.analysis.attachment import AttachmentAnalyzer
+from app.analysis.email_nlp import EmailNLPDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
@@ -14,7 +15,14 @@ from app.domain.schemas import RerunResponse, ScanResponse
 from app.ingestion.directory_ingestor import DirectoryIngestor
 
 router = APIRouter(prefix="/api/ingestion", tags=["ingestion"])
-orchestrator = AnalysisOrchestrator([AttachmentAnalyzer()])
+settings = get_settings()
+detectors = [AttachmentAnalyzer()]
+if settings.enable_email_nlp:
+    detectors.insert(0, EmailNLPDetector(
+        inference_module=settings.email_inference_directory / settings.email_inference_module,
+        model_path=settings.email_model_path or settings.email_inference_directory / "phishing_model.joblib",
+    ))
+orchestrator = AnalysisOrchestrator(detectors)
 
 
 def _attachment_analysis(parsed):

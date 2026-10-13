@@ -59,6 +59,8 @@ Put `.eml` files in `data/inbox` before scanning. The backend records content ha
 
 Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments. Detector results are persisted with the email analysis record.
 
+The Email/NLP adapter is available behind `ENABLE_EMAIL_NLP`. Enable it only in an environment matching the serialized model dependencies; the current teammate artifact was serialized with scikit-learn `1.9.0` and should be installed with `pip install -e '.[ml]'` under the project’s Python 3.13 environment.
+
 Attachment confidence starts at `0.95` when attachments are present and decreases when verification checks fail, such as an unknown signature, unrecognized extension, or signature mismatch. It is capped at a minimum of `0.50` and is not a calibrated probability.
 
 Unknown attachment types add a low-severity risk indicator and a small `15`-point contribution, while known malicious signatures and executable extensions receive substantially higher scores.
