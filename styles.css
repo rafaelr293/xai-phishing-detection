@@ -80,6 +80,7 @@ body {
     font-size: 12px;
 }
 .toolbar input { width: 240px; }
+.toolbar-actions { display: flex; gap: 10px; margin-left: auto; }
 .toolbar .btn { width: auto; margin: 0; }
 
 /* Two-column layout */
