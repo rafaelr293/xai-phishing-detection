@@ -62,7 +62,20 @@ curl -X POST http://localhost:8000/api/ingestion/scan
 
 The same email content is not imported twice because the backend stores a content hash.
 
-### 6. Rerun from scratch
+### 6. Configure aggregate risk weights
+
+Open **Settings** in the dashboard to adjust the contribution of Email/NLP, URL risk, attachments, and image analysis. The values are stored in PostgreSQL and apply immediately to existing aggregate analyses and all future scans. Available detector weights are normalized when a detector is unavailable.
+
+The settings API is also available directly:
+
+```bash
+curl http://localhost:8000/api/settings/risk-weights
+curl -X PUT http://localhost:8000/api/settings/risk-weights \
+	-H 'Content-Type: application/json' \
+	-d '{"weights":{"email_nlp":0.25,"url_risk":0.30,"attachment_analysis":0.20,"visual_analysis":0.25}}'
+```
+
+### 7. Rerun from scratch
 
 The dashboard’s **Rerun analysis** button asks for confirmation. The endpoint permanently deletes stored emails, analyses, detector results, URL records, traversal jobs, ingestion jobs, and files under `data/artifacts/screenshots`, then imports and analyzes the current `.eml` files again:
 
@@ -72,7 +85,7 @@ curl -X POST http://localhost:8000/api/ingestion/rerun-analysis
 
 Use this after changing detector or model behavior when stale database results must not remain.
 
-### 7. Traverse a selected URL
+### 8. Traverse a selected URL
 
 The URL-risk detector marks phishing-like URLs as `selected_for_traversal`. Traversal remains manually triggered from the full analysis menu. The dashboard sends:
 

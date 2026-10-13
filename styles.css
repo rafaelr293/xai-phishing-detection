@@ -41,6 +41,7 @@ body {
 .topbar h1 { font-size: 14px; font-weight: 600; margin: 0; }
 .topbar h1 .muted { font-size: 11px; margin-left: 6px; font-family: monospace; }
 .topbar-status { display: flex; gap: 24px; font-size: 11px; font-family: monospace; }
+.topbar-button { width: auto; margin: 0; padding: 6px 10px; }
 
 .container { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 
@@ -240,6 +241,22 @@ body {
     border-radius: 10px;
     box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
 }
+.settings-modal {
+    width: min(520px, 100%);
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid #3a3d46;
+    border-radius: 10px;
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
+}
+.settings-help { margin: 16px 0 20px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.weight-control { display: block; margin: 18px 0; }
+.weight-label { display: flex; justify-content: space-between; margin-bottom: 8px; color: #ccc; font-size: 12px; }
+.weight-label output { color: var(--cyan); font-family: monospace; }
+.weight-control input { width: 100%; accent-color: var(--cyan); }
+.settings-status { min-height: 18px; margin: 14px 0; color: var(--muted); font-size: 11px; }
+.settings-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.settings-actions .btn { width: auto; margin: 0; }
 .modal-header { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
 .modal-header h2 { margin: 8px 0 0; font-size: 18px; font-weight: 500; }
 .modal-close { border: 0; background: transparent; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; }

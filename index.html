@@ -10,6 +10,7 @@
 
 <header class="topbar">
     <h1><span class="dot dot-cyan"></span> KRIT <span class="muted">/ inbox monitor</span></h1>
+  <button type="button" class="btn topbar-button" id="settings-button">Settings</button>
 </header>
 
 <main class="container">
@@ -105,6 +106,25 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="settings-modal" hidden>
+    <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+      <header class="modal-header">
+        <div>
+          <span class="detail-label">RISK CONFIGURATION</span>
+          <h2 id="settings-modal-title">Aggregate score weights</h2>
+        </div>
+        <button class="modal-close" id="close-settings-modal" type="button" aria-label="Close settings">×</button>
+      </header>
+      <p class="settings-help">Adjust how strongly each completed analysis module contributes to the final score. Missing modules are excluded and the available weights are normalized.</p>
+      <div id="risk-weight-controls"></div>
+      <p class="settings-status" id="settings-status" role="status"></p>
+      <div class="settings-actions">
+        <button type="button" class="btn" id="cancel-settings-button">Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-settings-button">Save weights</button>
+      </div>
+    </section>
+  </div>
+
 <script>
 const API_BASE = "http://localhost:8000";
 const levelLabel = {
@@ -124,9 +144,22 @@ const analysisModal = document.getElementById("analysis-modal");
 const closeAnalysisModal = document.getElementById("close-analysis-modal");
 const emailModal = document.getElementById("email-modal");
 const closeEmailModal = document.getElementById("close-email-modal");
+const settingsButton = document.getElementById("settings-button");
+const settingsModal = document.getElementById("settings-modal");
+const closeSettingsModal = document.getElementById("close-settings-modal");
+const cancelSettingsButton = document.getElementById("cancel-settings-button");
+const saveSettingsButton = document.getElementById("save-settings-button");
+const riskWeightControls = document.getElementById("risk-weight-controls");
+const settingsStatus = document.getElementById("settings-status");
 let emails = [];
 let selectedId = null;
 let selectedEmail = null;
+const riskWeightLabels = {
+  email_nlp: "Email / NLP",
+  url_risk: "URL risk",
+  attachment_analysis: "Attachments",
+  visual_analysis: "Image analysis"
+};
 
 /*
 const emails = [
@@ -190,6 +223,68 @@ function escapeHtml(value) {
 
 function setStatus(message) {
   scanButton.textContent = message;
+}
+
+function closeSettingsViewer() {
+  settingsModal.hidden = true;
+  settingsButton.focus();
+}
+
+function renderRiskWeightControls(weights) {
+  riskWeightControls.innerHTML = Object.entries(riskWeightLabels).map(([name, label]) => {
+    const percentage = Math.round((weights[name] ?? 0) * 100);
+    return `<label class="weight-control" for="weight-${name}">
+      <span class="weight-label"><span>${label}</span><output id="weight-output-${name}">${percentage}%</output></span>
+      <input id="weight-${name}" type="range" min="0" max="100" step="5" value="${percentage}" data-weight-name="${name}">
+    </label>`;
+  }).join("");
+  riskWeightControls.querySelectorAll("input[type=range]").forEach(input => {
+    input.addEventListener("input", () => {
+      document.getElementById(`weight-output-${input.dataset.weightName}`).textContent = `${input.value}%`;
+    });
+  });
+}
+
+async function openSettingsViewer() {
+  settingsStatus.textContent = "Loading...";
+  settingsModal.hidden = false;
+  try {
+    const response = await fetch(`${API_BASE}/api/settings/risk-weights`);
+    if (!response.ok) throw new Error("Unable to load risk settings");
+    const data = await response.json();
+    renderRiskWeightControls(data.weights);
+    settingsStatus.textContent = "Weights apply to stored and future aggregate scores.";
+  } catch (error) {
+    settingsStatus.textContent = error.message;
+  }
+}
+
+async function saveRiskWeights() {
+  const weights = {};
+  riskWeightControls.querySelectorAll("input[type=range]").forEach(input => {
+    weights[input.dataset.weightName] = Number(input.value) / 100;
+  });
+  if (Object.values(weights).every(weight => weight === 0)) {
+    settingsStatus.textContent = "At least one module must have a weight greater than zero.";
+    return;
+  }
+  saveSettingsButton.disabled = true;
+  settingsStatus.textContent = "Saving...";
+  try {
+    const response = await fetch(`${API_BASE}/api/settings/risk-weights`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weights })
+    });
+    if (!response.ok) throw new Error((await response.json()).detail || "Unable to save risk settings");
+    const data = await response.json();
+    settingsStatus.textContent = `Saved. Recomputed ${data.updated_analyses} aggregate analyses.`;
+    await loadEmails();
+  } catch (error) {
+    settingsStatus.textContent = error.message;
+  } finally {
+    saveSettingsButton.disabled = false;
+  }
 }
 
 function updateCounts() {
@@ -527,6 +622,10 @@ async function rerunAnalysis() {
 search.addEventListener("input", renderTable);
 scanButton.addEventListener("click", scanInbox);
 rerunAnalysisButton.addEventListener("click", rerunAnalysis);
+settingsButton.addEventListener("click", openSettingsViewer);
+closeSettingsModal.addEventListener("click", closeSettingsViewer);
+cancelSettingsButton.addEventListener("click", closeSettingsViewer);
+saveSettingsButton.addEventListener("click", saveRiskWeights);
 viewAnalysisButton.addEventListener("click", openAnalysisModal);
 viewEmailButton.addEventListener("click", openEmailModal);
 closeAnalysisModal.addEventListener("click", closeAnalysisViewer);
@@ -537,8 +636,12 @@ analysisModal.addEventListener("click", event => {
 emailModal.addEventListener("click", event => {
   if (event.target === emailModal) closeEmailViewer();
 });
+settingsModal.addEventListener("click", event => {
+  if (event.target === settingsModal) closeSettingsViewer();
+});
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && !analysisModal.hidden) closeAnalysisViewer();
+  if (event.key === "Escape" && !settingsModal.hidden) closeSettingsViewer();
   if (event.key === "Escape" && !emailModal.hidden) closeEmailViewer();
 });
 

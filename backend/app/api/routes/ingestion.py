@@ -8,12 +8,13 @@ from app.analysis.attachment import AttachmentAnalyzer
 from app.analysis.email_nlp import EmailNLPDetector
 from app.analysis.explainability import ExplainabilityEngine
 from app.analysis.risk_engine import RiskAssessmentEngine
+from app.analysis.risk_engine import DEFAULT_WEIGHTS
 from app.analysis.url_risk import URLRiskDetector
 from app.analysis.visual import VisualDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
-from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus, URLTraversal
+from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus, RiskSettings, URLTraversal
 from app.domain.schemas import AnalysisContext, RerunResponse, ScanResponse
 from app.ingestion.directory_ingestor import DirectoryIngestor
 
@@ -36,8 +37,12 @@ if settings.enable_visual_analysis:
         artifact_directory=settings.artifact_directory,
     ))
 orchestrator = AnalysisOrchestrator(detectors)
-risk_engine = RiskAssessmentEngine()
 explainability_engine = ExplainabilityEngine()
+
+
+def _risk_engine_for(db: Session) -> RiskAssessmentEngine:
+    settings = db.get(RiskSettings, 1)
+    return RiskAssessmentEngine({**DEFAULT_WEIGHTS, **settings.weights} if settings else DEFAULT_WEIGHTS)
 
 
 def _run_analysis(db: Session, email: Email, parsed):
@@ -70,7 +75,7 @@ def _run_analysis(db: Session, email: Email, parsed):
             if url_record is not None:
                 indicator.evidence["url_id"] = str(url_record.id)
 
-    assessment = risk_engine.assess(analysis_results, [detector.name for detector in detectors])
+    assessment = _risk_engine_for(db).assess(analysis_results, [detector.name for detector in detectors])
     explanations = explainability_engine.explain(assessment)
     analysis = EmailAnalysis(
         status=ProcessingStatus(assessment.status),
