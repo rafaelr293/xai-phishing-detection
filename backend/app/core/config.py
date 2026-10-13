@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     url_inference_module: str = "URL_Inference"
     url_model_path: Optional[Path] = None
     enable_url_risk: bool = False
+    visual_model_path: Optional[Path] = None
+    enable_visual_analysis: bool = False
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
