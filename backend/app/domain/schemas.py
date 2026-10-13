@@ -74,3 +74,17 @@ class RerunResponse(BaseModel):
     requested: int
     rerun: int
     failed: int
+
+
+class URLTraversalResponse(BaseModel):
+    traversal_id: UUID
+    status: str
+    requested_url: str
+    final_url: Optional[str] = None
+    http_status: Optional[int] = None
+    page_title: Optional[str] = None
+    redirect_chain: list[dict] = Field(default_factory=list)
+    blocked_requests: list[str] = Field(default_factory=list)
+    screenshot_path: Optional[str] = None
+    screenshot_sha256: Optional[str] = None
+    error_message: Optional[str] = None

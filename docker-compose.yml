@@ -9,6 +9,26 @@ services:
       - "5432:5432"
     volumes:
       - phishing-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phishing -d phishing_detection"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://phishing:phishing@postgres:5432/phishing_detection
+      INGESTION_DIRECTORY: /app/data/inbox
+      ARTIFACT_DIRECTORY: /app/data/artifacts
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   phishing-postgres-data:

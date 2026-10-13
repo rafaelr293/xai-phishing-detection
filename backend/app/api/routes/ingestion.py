@@ -9,7 +9,7 @@ from app.analysis.attachment import AttachmentAnalyzer
 from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
-from app.db.models import DetectorResult, Email, EmailAnalysis, IngestionJob, ProcessingStatus
+from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus
 from app.domain.schemas import RerunResponse, ScanResponse
 from app.ingestion.directory_ingestor import DirectoryIngestor
 
@@ -98,6 +98,7 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
                     urls=parsed.urls,
                     attachments=[attachment.model_dump() for attachment in parsed.attachments],
                     received_at=parsed.received_at,
+                    url_records=[EmailURL(url=url) for url in parsed.urls],
                 )
                 email.analyses.append(_attachment_analysis(parsed))
                 db.add(email)

@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     ]
     enable_polling: bool = False
     poll_interval_seconds: int = 30
+    artifact_directory: Path = Path("./data/artifacts")
+    browser_timeout_ms: int = 15000
+    browser_max_redirects: int = 10
+    browser_viewport_width: int = 1440
+    browser_viewport_height: int = 1000
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
