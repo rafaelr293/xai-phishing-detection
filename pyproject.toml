@@ -27,6 +27,8 @@ ml = [
     "numpy>=1.24,<3.0",
     "pandas>=2.0,<3.0",
     "scikit-learn==1.9.0",
+    "lightgbm>=4.0,<5.0",
+    "tldextract>=5.0,<6.0",
 ]
 
 [tool.pytest.ini_options]

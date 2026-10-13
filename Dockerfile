@@ -3,7 +3,10 @@ FROM python:3.13-slim-bookworm
 WORKDIR /app
 COPY pyproject.toml .
 COPY backend ./backend
-RUN pip install --no-cache-dir '.[ml]' \
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends libgomp1 \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& pip install --no-cache-dir '.[ml]' \
 	&& playwright install --with-deps chromium
 
 COPY ["Tan Files", "./Tan Files"]

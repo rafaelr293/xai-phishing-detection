@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.analysis.attachment import AttachmentAnalyzer
 from app.analysis.email_nlp import EmailNLPDetector
+from app.analysis.url_risk import URLRiskDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
@@ -21,6 +22,11 @@ if settings.enable_email_nlp:
     detectors.insert(0, EmailNLPDetector(
         inference_module=settings.email_inference_directory / settings.email_inference_module,
         model_path=settings.email_model_path or settings.email_inference_directory / "phishing_model.joblib",
+    ))
+if settings.enable_url_risk:
+    detectors.insert(0, URLRiskDetector(
+        inference_module=settings.url_inference_directory / settings.url_inference_module,
+        model_path=settings.url_model_path or settings.url_inference_directory / "url_pipeline.joblib",
     ))
 orchestrator = AnalysisOrchestrator(detectors)
 
