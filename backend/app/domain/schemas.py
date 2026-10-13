@@ -30,6 +30,33 @@ class ParsedEmail(BaseModel):
     received_at: Optional[datetime] = None
 
 
+class TraversalContext(BaseModel):
+    id: UUID
+    email_url_id: UUID
+    requested_url: str
+    final_url: Optional[str] = None
+    screenshot_path: Optional[str] = None
+    screenshot_sha256: Optional[str] = None
+    status: str
+
+
+class URLContext(BaseModel):
+    id: UUID
+    url: str
+    selected_for_traversal: bool = False
+    traversals: list[TraversalContext] = Field(default_factory=list)
+
+
+class AnalysisContext(BaseModel):
+    email: ParsedEmail
+    email_id: Optional[UUID] = None
+    urls: list[URLContext] = Field(default_factory=list)
+
+    @classmethod
+    def from_email(cls, email: ParsedEmail) -> "AnalysisContext":
+        return cls(email=email)
+
+
 class Indicator(BaseModel):
     type: str
     description: str

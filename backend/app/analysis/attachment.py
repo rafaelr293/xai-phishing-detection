@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from pathlib import PurePath
 
-from app.domain.schemas import DetectorResultData, Indicator, ParsedEmail
+from app.domain.schemas import AnalysisContext, DetectorResultData, Indicator, ParsedEmail
 
 HIGH_RISK_EXTENSIONS = {".exe", ".dll", ".scr", ".com", ".cpl", ".msi", ".hta", ".lnk"}
 SCRIPT_EXTENSIONS = {".js", ".jse", ".vbs", ".vbe", ".ps1", ".bat", ".cmd", ".wsf"}
@@ -27,7 +29,8 @@ def _risk_level(score: int) -> str:
 class AttachmentAnalyzer:
     name = "attachment_analysis"
 
-    def analyze(self, email: ParsedEmail) -> DetectorResultData:
+    def analyze(self, context: AnalysisContext | ParsedEmail) -> DetectorResultData:
+        email = context.email if isinstance(context, AnalysisContext) else context
         if not email.attachments:
             return DetectorResultData(
                 detector=self.name,
