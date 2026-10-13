@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     email_inference_module: str = "Email_Inference.py"
     email_model_path: Optional[Path] = None
     enable_email_nlp: bool = False
+    url_inference_directory: Path = Path("./Tan Files")
+    url_inference_module: str = "URL_Inference"
+    url_model_path: Optional[Path] = None
+    enable_url_risk: bool = False
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",

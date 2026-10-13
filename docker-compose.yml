@@ -23,6 +23,8 @@ services:
       ARTIFACT_DIRECTORY: /app/data/artifacts
       EMAIL_INFERENCE_DIRECTORY: /app/Tan Files
       ENABLE_EMAIL_NLP: "true"
+      URL_INFERENCE_DIRECTORY: /app/Tan Files
+      ENABLE_URL_RISK: "true"
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
     ports:
       - "8000:8000"
