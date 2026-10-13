@@ -107,6 +107,44 @@ let emails = [];
 let selectedId = null;
 let selectedEmail = null;
 
+/*
+const emails = [
+  { score: 94, level: "critical", sender: "security-alert@paypal-verify.com", subject: "Urgent: Your account will be suspended in 24 hours", time: "09:14", status: "✓ Notified",
+    evidence: [
+      ["DMARC authentication failed", 20],
+      ["Urgency language detected", 15],
+      ["Sender domain mimics paypal.com", 15],
+      ["URL redirects through 4 domains", 15],
+      ["XGBoost: high phishing probability", 15],
+      ["Visual match to PayPal login (94%)", 20],
+      ["OCR detected credential form", 10]
+    ]},
+  { score: 88, level: "critical", sender: "it-support@internal-helpdesk.com", subject: "Password expiry notice - reset within 12h", time: "Aug 21", status: "✓ Notified",
+    evidence: [
+      ["Sender domain not in allowlist", 25],
+      ["Urgency language detected", 15],
+      ["Link text does not match destination", 25],
+      ["XGBoost: high phishing probability", 23]
+    ]},
+  { score: 71, level: "high", sender: "hr@company-benefits-update.net", subject: "Action required: Confirm your benefits enrollment", time: "08:47", status: "",
+    evidence: [
+      ["Lookalike domain of internal HR", 25],
+      ["Action-required language", 15],
+      ["XGBoost: elevated phishing probability", 31]
+    ]},
+  { score: 52, level: "medium", sender: "invoices@vendor-billing-portal.com", subject: "Invoice #48213 overdue - payment required", time: "Aug 21", status: "",
+    evidence: [
+      ["Unknown sender", 20],
+      ["Payment urgency detected", 17],
+      ["Attachment type: HTML", 15]
+    ]},
+  { score: 8, level: "low", sender: "notifications@github.com", subject: "[GitHub] New sign-in to your account", time: "07:30", status: "",
+    evidence: [["SPF/DKIM/DMARC pass", 0], ["Known sender", 8]] },
+  { score: 3, level: "low", sender: "newsletter@techweekly.io", subject: "This week in tech: 5 stories worth your time", time: "Aug 21", status: "",
+    evidence: [["Bulk mail headers present", 3]] }
+];
+*/
+
 function getLevel(email) {
   return email.level || "pending";
 }
