@@ -41,7 +41,6 @@ body {
 .topbar h1 { font-size: 14px; font-weight: 600; margin: 0; }
 .topbar h1 .muted { font-size: 11px; margin-left: 6px; font-family: monospace; }
 .topbar-status { display: flex; gap: 24px; font-size: 11px; font-family: monospace; }
-.topbar-button { width: 34px; height: 34px; margin: 0; padding: 0; font-size: 18px; line-height: 1; }
 
 .container { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 
@@ -209,6 +208,7 @@ body {
 }
 .btn-primary { background: #0f2a33; border-color: #1e6b7d; color: var(--cyan); }
 .btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.btn.topbar-button { flex: 0 0 38px; width: 38px; height: 38px; margin: 0; padding: 0; font-size: 23px; line-height: 1; }
 
 /* Email content viewer */
 .modal-backdrop {
@@ -246,14 +246,15 @@ body {
     max-height: min(760px, 90vh);
     overflow: auto;
     padding: 20px;
-    background: var(--panel);
-    border: 1px solid #3a3d46;
+    background: #15171d;
+    border: 1px solid #4a4f5a;
     border-radius: 10px;
-    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.7);
+    opacity: 1;
 }
 .settings-help { margin: 16px 0 20px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.weight-control { display: grid; grid-template-columns: 140px minmax(0, 1fr); align-items: center; gap: 16px; margin: 18px 0; }
-.weight-label { color: #ccc; font-size: 12px; }
+.weight-control { display: block; margin: 16px 0; padding: 14px 16px 16px; background: #1a1c22; border: 1px solid #343944; border-radius: 8px; }
+.weight-label { display: block; margin-bottom: 11px; color: #e6e6e6; font: 10px monospace; letter-spacing: 1px; text-transform: uppercase; }
 .weight-inputs { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .weight-number { width: 48px; padding: 5px 4px; background: #0b0d12; color: var(--text); border: 1px solid #444; border-radius: 5px; font: 11px monospace; text-align: right; }
 .weight-percent { color: var(--muted); font: 11px monospace; }
