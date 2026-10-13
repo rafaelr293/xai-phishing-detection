@@ -34,5 +34,17 @@ services:
       postgres:
         condition: service_healthy
 
+  visual-worker:
+    build:
+      context: .
+      dockerfile: "Visual Worker.Dockerfile"
+    environment:
+      ARTIFACT_DIRECTORY: /app/data/artifacts
+      VISUAL_MODEL_PATH: /app/Tan Files/phish360_efficientnet_b0_best.pt
+    expose:
+      - "8010"
+    volumes:
+      - ./data:/app/data
+
 volumes:
   phishing-postgres-data:

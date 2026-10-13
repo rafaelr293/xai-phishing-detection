@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.analysis.attachment import AttachmentAnalyzer
 from app.analysis.email_nlp import EmailNLPDetector
 from app.analysis.url_risk import URLRiskDetector
+from app.analysis.visual import VisualDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
@@ -27,6 +28,11 @@ if settings.enable_url_risk:
     detectors.insert(0, URLRiskDetector(
         inference_module=settings.url_inference_directory / settings.url_inference_module,
         model_path=settings.url_model_path or settings.url_inference_directory / "url_pipeline.joblib",
+    ))
+if settings.enable_visual_analysis:
+    detectors.insert(0, VisualDetector(
+        model_path=settings.visual_model_path or settings.email_inference_directory / "phish360_efficientnet_b0_best.pt",
+        artifact_directory=settings.artifact_directory,
     ))
 orchestrator = AnalysisOrchestrator(detectors)
 
