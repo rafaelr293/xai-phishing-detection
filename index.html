@@ -248,6 +248,13 @@ function showDetail(email) {
 }
 
 function detectorLabel(name) {
+  const labels = {
+    email_nlp: "Email NLP / Social Engineering Analysis",
+    attachment_analysis: "Attachment Analysis",
+    url_risk: "URL Risk Analysis",
+    visual_analysis: "Website Image Analysis"
+  };
+  if (labels[name]) return labels[name];
   return String(name || "unknown_detector")
     .replaceAll("_", " ")
     .replace(/\b\w/g, letter => letter.toUpperCase());
@@ -258,20 +265,304 @@ function urlRecordForIndicator(email, indicator) {
   return (email.url_records || []).find(record => record.id === urlId);
 }
 
+function riskLevelFromScore(score) {
+  if (score === null || score === undefined || Number.isNaN(Number(score))) return "informational";
+  const value = Number(score);
+  if (value >= 75) return "critical";
+  if (value >= 50) return "high";
+  if (value >= 25) return "medium";
+  return "low";
+}
+
+function severityBadge(severity) {
+  const level = String(severity || "informational").toLowerCase();
+  const label = level === "informational" ? "info" : level;
+  return `<span class="severity-badge ${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value)) return "—";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+  return `${(Number(value) * 100).toFixed(1)}%`;
+}
+
+function renderTechnicalDetails(evidence) {
+  const json = JSON.stringify(evidence || {}, null, 2);
+  return `<details class="tech-details">
+    <summary>Technical evidence (raw JSON)</summary>
+    <pre class="analysis-evidence">${escapeHtml(json)}</pre>
+  </details>`;
+}
+
+const ATTACHMENT_INDICATOR_GUIDE = {
+  dangerous_extension: "Executable-style extensions are commonly used to deliver malware and should be treated as high risk until proven otherwise.",
+  script_attachment: "Script-capable files can run commands when opened and are a frequent phishing delivery method.",
+  macro_enabled_document: "Macro-enabled Office documents can execute embedded code when opened in desktop apps.",
+  web_attachment: "HTML/SVG attachments can contain active content or fake login pages.",
+  double_extension: "Double extensions can disguise an executable behind a familiar document name.",
+  file_signature_mismatch: "The file content signature does not match the filename extension, which can indicate renaming to evade filters.",
+  executable_signature: "The file bytes begin with a Windows executable signature (MZ), regardless of the displayed name.",
+  archive_contains_script: "Nested executable or script files inside archives are a common malware packaging pattern.",
+  malformed_archive: "The archive could not be inspected cleanly, which may hide nested content from static checks.",
+  empty_attachment: "An empty attachment is unusual and may indicate a malformed or placeholder payload.",
+  large_attachment: "Unusually large attachments can warrant extra scrutiny in phishing investigations.",
+  unknown_attachment_type: "The file signature was not recognised by the available static checks."
+};
+
+function indicatorGuide(type) {
+  return ATTACHMENT_INDICATOR_GUIDE[type] || "";
+}
+
+function renderFindingCard(indicator, actionsHtml = "") {
+  const title = indicator.type
+    ? String(indicator.type).replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase())
+    : "Finding";
+  const evidenceBits = [];
+  const evidence = indicator.evidence || {};
+  if (evidence.filename) evidenceBits.push(`File: ${evidence.filename}`);
+  if (evidence.extension) evidenceBits.push(`Extension: ${evidence.extension}`);
+  if (evidence.expected_type && evidence.detected_type) {
+    evidenceBits.push(`Expected ${evidence.expected_type}, detected ${evidence.detected_type}`);
+  }
+  if (Array.isArray(evidence.members) && evidence.members.length) {
+    evidenceBits.push(`Archive members: ${evidence.members.join(", ")}`);
+  }
+  if (evidence.url) evidenceBits.push(`URL: ${evidence.url}`);
+  if (evidence.probability !== undefined) evidenceBits.push(`Model probability: ${formatPercent(evidence.probability)}`);
+  if (evidence.threshold !== undefined && evidence.threshold !== null) {
+    evidenceBits.push(`Decision threshold: ${formatPercent(evidence.threshold)}`);
+  }
+  const guide = indicatorGuide(indicator.type);
+  return `<li class="finding-card">
+    <div class="finding-card-header">
+      <p class="finding-title">${escapeHtml(title)}</p>
+      ${severityBadge(indicator.severity || "informational")}
+    </div>
+    <p class="finding-desc">${escapeHtml(indicator.description || "No description provided.")}</p>
+    ${guide ? `<p class="finding-explain">${escapeHtml(guide)}</p>` : ""}
+    ${evidenceBits.length ? `<div class="finding-evidence">${escapeHtml(evidenceBits.join("\n"))}</div>` : ""}
+    ${actionsHtml}
+  </li>`;
+}
+
+function renderDetectorShell({ title, status, score, level, metricsHtml, summaryHtml, bodyHtml, evidence, errorMessage }) {
+  const failed = String(status || "").toUpperCase() === "FAILED";
+  return `<section class="detector-section">
+    <div class="detector-heading">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="detector-heading-meta">
+        ${severityBadge(level)}
+        <span class="detector-status${failed ? " is-failed" : ""}">${escapeHtml(status || "UNKNOWN")}</span>
+      </div>
+    </div>
+    <div class="detector-metrics">
+      <span>Risk score <strong>${score ?? "—"}</strong></span>
+      ${metricsHtml || ""}
+    </div>
+    ${errorMessage ? `<p class="analysis-error">${escapeHtml(errorMessage)}</p>` : ""}
+    ${summaryHtml}
+    ${bodyHtml}
+    ${renderTechnicalDetails(evidence)}
+  </section>`;
+}
+
+function renderEmailNlpPanel(detector) {
+  const evidence = detector.evidence || {};
+  const level = evidence.risk_level || riskLevelFromScore(detector.risk_score);
+  const label = String(evidence.label || "").toLowerCase();
+  const probability = evidence.model_probability;
+  const threshold = evidence.decision_threshold;
+  const calibrated = evidence.calibrated_confidence === true;
+  let summary;
+  if (String(detector.status || "").toUpperCase() === "FAILED") {
+    summary = "Email NLP analysis failed. The model prediction below may be incomplete.";
+  } else if (label === "phishing") {
+    summary = "Email content was classified as phishing-like by the NLP model. Review the prediction details below. Detailed linguistic feature explanations are not provided by the current model output.";
+  } else if (label === "ham" || label === "legitimate") {
+    summary = "Email content was classified as legitimate/ham by the NLP model. This is a model prediction only and does not prove the message is safe.";
+  } else {
+    summary = "Email NLP analysis completed. The current detector returns a classification score rather than fine-grained social-engineering feature attributions.";
+  }
+
+  const metrics = [
+    `<span>Risk class <strong>${escapeHtml(level)}</strong></span>`,
+    `<span>${calibrated ? "Calibrated confidence" : "Uncalibrated model probability"} <strong>${formatPercent(probability)}</strong></span>`
+  ].join("");
+
+  const modelInfo = `<h4>Model prediction</h4>
+    <dl class="model-info-grid">
+      <dt>Predicted label</dt><dd>${escapeHtml(evidence.label || "—")}</dd>
+      <dt>Model probability</dt><dd>${formatPercent(probability)}${calibrated ? "" : " (uncalibrated estimate)"}</dd>
+      <dt>Decision threshold</dt><dd>${threshold === null || threshold === undefined ? "—" : formatPercent(threshold)}</dd>
+      <dt>Calibration</dt><dd>${calibrated ? "Calibrated confidence available" : "Not calibrated — do not treat as a reliable confidence interval"}</dd>
+      <dt>Model source</dt><dd>${escapeHtml(evidence.model_source || "—")}</dd>
+    </dl>
+    <p class="detector-summary"><span class="limitation">Limitation: this detector does not currently expose per-feature attributions (for example urgency, credential requests, or impersonation spans). Only the aggregate classification is available.</span></p>`;
+
+  const indicators = detector.indicators || [];
+  const findings = indicators.length
+    ? `<h4>Explainable findings</h4><ul class="finding-list">${indicators.map(indicator => renderFindingCard(indicator)).join("")}</ul>`
+    : `<h4>Explainable findings</h4><p class="analysis-empty">No fine-grained linguistic indicators were returned. Only the model classification above is available.</p>`;
+
+  return renderDetectorShell({
+    title: detectorLabel("email_nlp"),
+    status: detector.status,
+    score: detector.risk_score,
+    level,
+    metricsHtml: metrics,
+    summaryHtml: `<p class="detector-summary">${escapeHtml(summary)}</p>`,
+    bodyHtml: modelInfo + findings,
+    evidence,
+    errorMessage: detector.error_message
+  });
+}
+
+function renderAttachmentPanel(detector, email) {
+  const evidence = detector.evidence || {};
+  const attachments = email.attachments || [];
+  const indicators = detector.indicators || [];
+  const count = evidence.attachment_count ?? attachments.length;
+  const level = evidence.risk_level || riskLevelFromScore(detector.risk_score);
+  const suspiciousCount = indicators.length;
+  let summary;
+  if (count === 0) {
+    summary = "No attachments were present on this email, so static attachment checks did not flag any file-based findings.";
+  } else if (suspiciousCount === 0) {
+    summary = `${count} attachment${count === 1 ? " was" : "s were"} analysed with the available static checks. No suspicious file characteristics were detected. This does not prove the attachment is harmless.`;
+  } else {
+    summary = `${count} attachment${count === 1 ? " was" : "s were"} analysed. ${suspiciousCount} suspicious indicator${suspiciousCount === 1 ? " was" : "s were"} raised by static inspection. Attachments are never executed by this analyser.`;
+  }
+
+  const metrics = [
+    `<span>Attachments <strong>${count}</strong></span>`,
+    `<span>Risk level <strong>${escapeHtml(level)}</strong></span>`,
+    `<span>Suspicious indicators <strong>${suspiciousCount}</strong></span>`,
+    detector.confidence === null || detector.confidence === undefined
+      ? ""
+      : `<span>Check confidence <strong>${Math.round(detector.confidence * 100)}%</strong></span>`
+  ].join("");
+
+  const perAttachment = attachments.length
+    ? `<h4>Per-attachment findings</h4>${attachments.map(attachment => {
+        const related = indicators.filter(indicator => (indicator.evidence || {}).filename === attachment.filename);
+        return `<article class="attachment-card">
+          <h5>${escapeHtml(attachment.filename || "unnamed")}</h5>
+          <dl class="attachment-meta">
+            <dt>Detected type</dt><dd>${escapeHtml(attachment.detected_type || "unknown")}</dd>
+            <dt>MIME type</dt><dd>${escapeHtml(attachment.content_type || "—")}</dd>
+            <dt>Size</dt><dd>${escapeHtml(formatBytes(attachment.size_bytes))}</dd>
+            <dt>SHA-256</dt><dd>${escapeHtml(attachment.sha256 || "—")}</dd>
+            <dt>Archive members</dt><dd>${escapeHtml((attachment.archive_members || []).join(", ") || "—")}</dd>
+            <dt>Archive status</dt><dd>${attachment.archive_malformed ? "Malformed / unreadable as ZIP" : (attachment.detected_type === "zip_archive" ? "Readable ZIP listing" : "—")}</dd>
+          </dl>
+          ${related.length
+            ? `<ul class="finding-list" style="margin-top:10px">${related.map(indicator => renderFindingCard(indicator)).join("")}</ul>`
+            : `<p class="analysis-empty" style="margin-top:10px">No suspicious static indicators for this file.</p>`}
+        </article>`;
+      }).join("")}`
+    : "";
+
+  const orphanIndicators = indicators.filter(indicator => {
+    const filename = (indicator.evidence || {}).filename;
+    return filename && !attachments.some(attachment => attachment.filename === filename);
+  });
+  const otherFindings = (orphanIndicators.length || (!attachments.length && indicators.length))
+    ? `<h4>Additional indicators</h4><ul class="finding-list">${(orphanIndicators.length ? orphanIndicators : indicators).map(indicator => renderFindingCard(indicator)).join("")}</ul>`
+    : "";
+
+  return renderDetectorShell({
+    title: detectorLabel("attachment_analysis"),
+    status: detector.status,
+    score: detector.risk_score,
+    level,
+    metricsHtml: metrics,
+    summaryHtml: `<p class="detector-summary">${escapeHtml(summary)}</p>`,
+    bodyHtml: (perAttachment + otherFindings) || `<h4>Findings</h4><p class="analysis-empty">No attachment findings to display.</p>`,
+    evidence,
+    errorMessage: detector.error_message
+  });
+}
+
+function renderGenericDetectorPanel(detector, email) {
+  const evidence = detector.evidence || {};
+  const level = evidence.risk_level || riskLevelFromScore(detector.risk_score);
+  const indicators = detector.indicators || [];
+  const calibrated = evidence.calibrated_confidence === true;
+  const metrics = [];
+  if (detector.confidence !== null && detector.confidence !== undefined) {
+    metrics.push(`<span>Confidence <strong>${Math.round(detector.confidence * 100)}%</strong></span>`);
+  } else if (evidence.model_probability !== undefined) {
+    metrics.push(`<span>${calibrated ? "Calibrated confidence" : "Uncalibrated model probability"} <strong>${formatPercent(evidence.model_probability)}</strong></span>`);
+  }
+  if (evidence.url_count !== undefined) metrics.push(`<span>URLs analysed <strong>${evidence.url_count}</strong></span>`);
+  if (evidence.risk_level) metrics.push(`<span>Risk level <strong>${escapeHtml(evidence.risk_level)}</strong></span>`);
+
+  let summary = "Detector analysis completed.";
+  if (String(detector.status || "").toUpperCase() === "FAILED") {
+    summary = "This detector failed. Review the error and technical evidence.";
+  } else if (!indicators.length && (detector.risk_score === 0 || detector.risk_score === null)) {
+    summary = "No suspicious indicators were returned by this detector. Absence of indicators is not proof of safety.";
+  } else if (indicators.length) {
+    summary = `${indicators.length} indicator${indicators.length === 1 ? "" : "s"} returned. Review each finding and supporting evidence below.`;
+  }
+
+  const findings = indicators.length
+    ? `<h4>Detected indicators</h4><ul class="finding-list">${indicators.map(indicator => {
+        let actions = "";
+        if (detector.detector === "url_risk" && indicator.evidence?.url_id) {
+          const record = urlRecordForIndicator(email, indicator);
+          const activeTraversal = record?.traversals?.find(traversal => ["PENDING", "RUNNING"].includes(traversal.status));
+          const completedTraversal = record?.traversals?.some(traversal => traversal.status === "COMPLETED");
+          const label = activeTraversal ? `${activeTraversal.status.toLowerCase()}...` : completedTraversal ? "traverse again" : "traverse URL";
+          const buttonClass = completedTraversal ? "btn btn-small" : "btn btn-primary btn-small";
+          actions = `<div style="margin-top:8px"><button type="button" class="${buttonClass} traverse-url-button" data-email-id="${escapeHtml(email.id)}" data-url-id="${escapeHtml(indicator.evidence.url_id)}" ${activeTraversal ? "disabled" : ""}>${label}</button></div>`;
+        }
+        return renderFindingCard(indicator, actions);
+      }).join("")}</ul>`
+    : `<h4>Detected indicators</h4><p class="analysis-empty">No indicators returned.</p>`;
+
+  return renderDetectorShell({
+    title: detectorLabel(detector.detector),
+    status: detector.status,
+    score: detector.risk_score,
+    level,
+    metricsHtml: metrics.join(""),
+    summaryHtml: `<p class="detector-summary">${escapeHtml(summary)}</p>`,
+    bodyHtml: findings,
+    evidence,
+    errorMessage: detector.error_message
+  });
+}
+
+function renderDetectorPanel(detector, email) {
+  if (detector.detector === "email_nlp") return renderEmailNlpPanel(detector);
+  if (detector.detector === "attachment_analysis") return renderAttachmentPanel(detector, email);
+  return renderGenericDetectorPanel(detector, email);
+}
+
 function renderVisualAnalysis(visualAnalysis) {
   if (!visualAnalysis || !Object.keys(visualAnalysis).length) return "";
   const indicators = visualAnalysis.indicators || [];
-  const evidence = JSON.stringify(visualAnalysis.evidence || {}, null, 2);
+  const level = (visualAnalysis.evidence || {}).risk_level || riskLevelFromScore(visualAnalysis.risk_score);
   const indicatorMarkup = indicators.length
-    ? `<ul class="analysis-indicators">${indicators.map(indicator => `
-        <li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")}</ul>`
+    ? `<ul class="finding-list">${indicators.map(indicator => renderFindingCard(indicator)).join("")}</ul>`
     : '<p class="analysis-empty">No visual indicators returned.</p>';
   return `<div class="traversal-visual-analysis">
-    <div class="detector-heading"><h4>Image analysis</h4><span class="detector-status">${escapeHtml(visualAnalysis.status || "UNKNOWN")}</span></div>
+    <div class="detector-heading">
+      <h4>Image analysis</h4>
+      <div class="detector-heading-meta">${severityBadge(level)}<span class="detector-status">${escapeHtml(visualAnalysis.status || "UNKNOWN")}</span></div>
+    </div>
     <div class="detector-metrics"><span>Risk score <strong>${visualAnalysis.risk_score ?? "—"}</strong></span></div>
     ${visualAnalysis.error_message ? `<p class="analysis-error">${escapeHtml(visualAnalysis.error_message)}</p>` : ""}
     ${indicatorMarkup}
-    <pre class="analysis-evidence">${escapeHtml(evidence)}</pre>
+    ${renderTechnicalDetails(visualAnalysis.evidence || {})}
   </div>`;
 }
 
@@ -329,43 +620,7 @@ function renderAnalysis(email) {
   const detectorResults = analyses.flatMap(analysis => analysis.detectors || []);
   document.getElementById("analysis-modal-title").textContent = email.subject || "(No subject)";
 
-  const detectorMarkup = detectorResults.map(detector => {
-    const indicators = detector.indicators || [];
-    const evidence = JSON.stringify(detector.evidence || {}, null, 2);
-    const indicatorMarkup = indicators.length
-      ? `<ul class="analysis-indicators">${indicators.map(indicator => `
-          <li>
-            <span>
-              ${escapeHtml(indicator.description || indicator.type)}
-              ${detector.detector === "url_risk" && indicator.evidence?.url ? `<span class="indicator-url">${escapeHtml(indicator.evidence.url)}</span>` : ""}
-            </span>
-            ${detector.detector === "url_risk" && indicator.evidence?.url_id ? (() => {
-              const record = urlRecordForIndicator(email, indicator);
-              const activeTraversal = record?.traversals?.find(traversal => ["PENDING", "RUNNING"].includes(traversal.status));
-              const completedTraversal = record?.traversals?.some(traversal => traversal.status === "COMPLETED");
-              const label = activeTraversal ? `${activeTraversal.status.toLowerCase()}...` : completedTraversal ? "traverse again" : "traverse URL";
-              const buttonClass = completedTraversal ? "btn btn-small" : "btn btn-primary btn-small";
-              return `<button type="button" class="${buttonClass} traverse-url-button" data-email-id="${escapeHtml(email.id)}" data-url-id="${escapeHtml(indicator.evidence.url_id)}" ${activeTraversal ? "disabled" : ""}>${label}</button>`;
-            })() : `<span class="pts">${escapeHtml(indicator.severity || "")}</span>`}
-          </li>`).join("")}</ul>`
-      : '<p class="analysis-empty">No indicators returned.</p>';
-
-    return `<section class="detector-section">
-      <div class="detector-heading">
-        <h3>${escapeHtml(detectorLabel(detector.detector))}</h3>
-        <span class="detector-status">${escapeHtml(detector.status || "UNKNOWN")}</span>
-      </div>
-      <div class="detector-metrics">
-        <span>Risk score <strong>${detector.risk_score ?? "—"}</strong></span>
-        <span>Confidence <strong>${detector.confidence === null || detector.confidence === undefined ? "—" : `${Math.round(detector.confidence * 100)}%`}</strong></span>
-      </div>
-      ${detector.error_message ? `<p class="analysis-error">${escapeHtml(detector.error_message)}</p>` : ""}
-      <h4>Indicators</h4>
-      ${indicatorMarkup}
-      <h4>Technical evidence</h4>
-      <pre class="analysis-evidence">${escapeHtml(evidence)}</pre>
-    </section>`;
-  }).join("");
+  const detectorMarkup = detectorResults.map(detector => renderDetectorPanel(detector, email)).join("");
   const traversalMarkup = renderTraversalSection(email);
 
   if (!detectorMarkup && !traversalMarkup) {
