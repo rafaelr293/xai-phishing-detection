@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://phishing:phishing@localhost:5432/phishing_detection"
     ingestion_directory: Path = Path("./data/inbox")
     max_eml_size_bytes: int = 10 * 1024 * 1024
-    cors_origins: list[str] = [
+    cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "http://localhost:8080",
