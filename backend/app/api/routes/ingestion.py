@@ -42,6 +42,7 @@ explainability_engine = ExplainabilityEngine()
 
 
 def _run_analysis(db: Session, email: Email, parsed):
+    _ensure_url_records(email, parsed.urls)
     context = AnalysisContext(
         email=parsed,
         email_id=email.id,
@@ -91,6 +92,13 @@ def _run_analysis(db: Session, email: Email, parsed):
     return analysis
 
 
+def _ensure_url_records(email: Email, urls: list[str]) -> None:
+    existing_urls = {record.url.strip().lower() for record in email.url_records}
+    for url in urls:
+        if url.strip().lower() not in existing_urls:
+            email.url_records.append(EmailURL(url=url))
+
+
 def _refresh_analysis(db: Session, email: Email, analysis: EmailAnalysis, parsed) -> None:
     refreshed_analysis = _run_analysis(db, email, parsed)
     analysis.status = refreshed_analysis.status
@@ -133,6 +141,7 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
             parsed = ingestor.parse(path)
             existing = db.query(Email).filter(Email.content_hash == parsed.content_hash).first()
             if existing:
+                _ensure_url_records(existing, parsed.urls)
                 pending_analysis = next((analysis for analysis in existing.analyses if analysis.status == ProcessingStatus.PENDING), None)
                 if pending_analysis:
                     _refresh_analysis(db, existing, pending_analysis, parsed)
@@ -178,6 +187,7 @@ def rerun_analysis(db: Session = Depends(get_db)) -> RerunResponse:
     for email in emails:
         try:
             parsed = ingestor.parse(Path(email.source_path))
+            _ensure_url_records(email, parsed.urls)
             analysis = max(email.analyses, key=lambda item: item.created_at or datetime.min)
             _refresh_analysis(db, email, analysis, parsed)
             rerun += 1
