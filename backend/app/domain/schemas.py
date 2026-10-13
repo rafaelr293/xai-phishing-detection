@@ -12,6 +12,8 @@ class AttachmentData(BaseModel):
     content_type: str
     size_bytes: int
     sha256: str
+    detected_type: str = "unknown"
+    archive_members: list[str] = Field(default_factory=list)
 
 
 class ParsedEmail(BaseModel):

@@ -49,6 +49,8 @@ curl -X POST http://localhost:8000/api/ingestion/scan
 
 Put `.eml` files in `data/inbox` before scanning. The backend records content hashes so scanning the same file again does not create a duplicate email.
 
+Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments. Detector results are persisted with the email analysis record.
+
 ### 5. View the static frontend
 
 You can open `index.html` directly in your browser:

@@ -1,3 +1,6 @@
+import base64
+import io
+import zipfile
 from pathlib import Path
 
 from app.ingestion.eml_parser import parse_eml
@@ -36,3 +39,29 @@ def test_parse_eml_rejects_oversized_file(tmp_path: Path) -> None:
         assert "size limit" in str(error)
     else:
         raise AssertionError("Expected oversized email to be rejected")
+
+
+def test_parse_eml_lists_archive_members_without_extracting(tmp_path: Path) -> None:
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w") as archive:
+        archive.writestr("readme.txt", "safe test content")
+        archive.writestr("update.js", "safe test content")
+    encoded_archive = base64.b64encode(archive_buffer.getvalue()).decode("ascii")
+    source = tmp_path / "archive.eml"
+    source.write_text(
+        'From: sender@example.com\n'
+        'To: analyst@example.com\n'
+        'Subject: Archive\n'
+        'MIME-Version: 1.0\n'
+        'Content-Type: multipart/mixed; boundary="b"\n\n'
+        '--b\nContent-Type: application/zip\n'
+        'Content-Disposition: attachment; filename="documents.zip"\n'
+        'Content-Transfer-Encoding: base64\n\n'
+        f'{encoded_archive}\n--b--\n',
+        encoding="utf-8",
+    )
+
+    parsed = parse_eml(source, 1024 * 1024)
+
+    assert parsed.attachments[0].detected_type == "zip_archive"
+    assert parsed.attachments[0].archive_members == ["readme.txt", "update.js"]
