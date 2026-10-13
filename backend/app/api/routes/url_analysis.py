@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.base import SessionLocal, get_db
-from app.db.models import EmailURL, ProcessingStatus, URLTraversal
-from app.domain.schemas import URLTraversalResponse
+from app.db.models import DetectorResult, EmailURL, ProcessingStatus, URLTraversal
+from app.domain.schemas import DetectorResultData, URLTraversalResponse
 from app.browser_worker.client import BrowserWorkerClient
+from app.visual_worker_client import VisualWorkerClient
 
 router = APIRouter(prefix="/api/emails", tags=["url-analysis"])
 
@@ -38,11 +39,52 @@ def _run_traversal_job(traversal_id: UUID) -> None:
             traversal.blocked_requests = output.get("blocked_requests", [])
             traversal.screenshot_path = output.get("screenshot_path")
             traversal.screenshot_sha256 = output.get("screenshot_sha256")
+            _run_visual_analysis(db, traversal, settings)
         except Exception as exc:
             traversal.status = ProcessingStatus.FAILED
             traversal.error_message = str(exc)
         traversal.completed_at = datetime.now(timezone.utc)
         db.commit()
+
+
+def _run_visual_analysis(db: Session, traversal: URLTraversal, settings) -> None:
+    if not settings.visual_worker_url or not traversal.screenshot_path:
+        return
+    result_data: DetectorResultData
+    try:
+        output = VisualWorkerClient(
+            settings.visual_worker_url,
+            settings.visual_worker_timeout_seconds,
+        ).predict(
+            str(traversal.id),
+            traversal.screenshot_path,
+            traversal.requested_url,
+        )
+        result_data = DetectorResultData.model_validate(output)
+    except Exception as exc:
+        result_data = DetectorResultData(
+            detector="visual_analysis",
+            status="FAILED",
+            error_message=str(exc),
+        )
+
+    email = traversal.email_url.email
+    if not email.analyses:
+        return
+    analysis = max(email.analyses, key=lambda item: item.created_at or datetime.min)
+    detector_result = next(
+        (result for result in analysis.detector_results if result.detector == result_data.detector),
+        None,
+    )
+    if detector_result is None:
+        detector_result = DetectorResult(detector=result_data.detector)
+        analysis.detector_results.append(detector_result)
+    detector_result.status = ProcessingStatus(result_data.status)
+    detector_result.risk_score = result_data.risk_score
+    detector_result.confidence = result_data.confidence
+    detector_result.indicators = [indicator.model_dump() for indicator in result_data.indicators]
+    detector_result.evidence = result_data.evidence
+    detector_result.error_message = result_data.error_message
 
 
 @router.post("/{email_id}/urls/{url_id}/traverse", response_model=URLTraversalResponse, status_code=202)

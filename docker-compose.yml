@@ -26,6 +26,7 @@ services:
       URL_INFERENCE_DIRECTORY: /app/Tan Files
       ENABLE_URL_RISK: "true"
       BROWSER_WORKER_URL: http://browser-worker:8010
+      VISUAL_WORKER_URL: http://visual-worker:8010
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
     ports:
       - "8000:8000"
@@ -34,6 +35,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      browser-worker:
+        condition: service_started
+      visual-worker:
+        condition: service_started
 
   browser-worker:
     build:
