@@ -260,6 +260,8 @@ body {
 .weight-percent { color: var(--muted); font: 11px monospace; }
 .weight-inputs input[type="range"] { flex: 1; min-width: 80px; accent-color: var(--cyan); }
 .settings-status { min-height: 18px; margin: 14px 0; color: var(--muted); font-size: 11px; }
+.settings-total { margin: 22px 0 0; color: var(--cyan); font: 12px monospace; }
+.settings-total-invalid { color: var(--critical); }
 .settings-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .settings-actions .btn { width: auto; margin: 0; }
 .modal-header { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 14px; }

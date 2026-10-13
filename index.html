@@ -117,6 +117,7 @@
       </header>
       <p class="settings-help">Adjust how strongly each completed analysis module contributes to the final score. Missing modules are excluded and the available weights are normalized.</p>
       <div id="risk-weight-controls"></div>
+      <p class="settings-total" id="settings-total">Total: 100%</p>
       <p class="settings-status" id="settings-status" role="status"></p>
       <div class="settings-actions">
         <button type="button" class="btn" id="cancel-settings-button">Cancel</button>
@@ -150,6 +151,7 @@ const closeSettingsModal = document.getElementById("close-settings-modal");
 const cancelSettingsButton = document.getElementById("cancel-settings-button");
 const saveSettingsButton = document.getElementById("save-settings-button");
 const riskWeightControls = document.getElementById("risk-weight-controls");
+const settingsTotal = document.getElementById("settings-total");
 const settingsStatus = document.getElementById("settings-status");
 let emails = [];
 let selectedId = null;
@@ -245,14 +247,29 @@ function renderRiskWeightControls(weights) {
   riskWeightControls.querySelectorAll("input[type=range]").forEach(input => {
     input.addEventListener("input", () => {
       document.getElementById(`weight-number-${input.dataset.weightName}`).value = input.value;
+      updateSettingsTotal();
     });
   });
   riskWeightControls.querySelectorAll("input[type=number]").forEach(input => {
     input.addEventListener("input", () => {
       const value = Math.min(100, Math.max(0, Number(input.value) || 0));
       document.getElementById(`weight-${input.dataset.weightName}`).value = value;
+      updateSettingsTotal();
     });
   });
+  updateSettingsTotal();
+}
+
+function getRiskWeightPercentages() {
+  return [...riskWeightControls.querySelectorAll("input[type=number]")]
+    .map(input => Math.min(100, Math.max(0, Number(input.value) || 0)));
+}
+
+function updateSettingsTotal() {
+  const total = getRiskWeightPercentages().reduce((sum, value) => sum + value, 0);
+  settingsTotal.textContent = `Total: ${total}%`;
+  settingsTotal.classList.toggle("settings-total-invalid", total !== 100);
+  saveSettingsButton.disabled = total !== 100;
 }
 
 async function openSettingsViewer() {
@@ -274,8 +291,9 @@ async function saveRiskWeights() {
   riskWeightControls.querySelectorAll("input[type=range]").forEach(input => {
     weights[input.dataset.weightName] = Number(input.value) / 100;
   });
-  if (Object.values(weights).every(weight => weight === 0)) {
-    settingsStatus.textContent = "At least one module must have a weight greater than zero.";
+  const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+  if (Math.abs(total - 1) > 0.0001) {
+    settingsStatus.textContent = "Detector weights must total 100% before saving.";
     return;
   }
   saveSettingsButton.disabled = true;

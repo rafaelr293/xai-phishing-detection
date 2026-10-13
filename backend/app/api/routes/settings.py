@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from math import isclose
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, field_validator
@@ -27,8 +28,8 @@ class RiskWeightsUpdate(BaseModel):
         complete = {**DEFAULT_WEIGHTS, **weights}
         if any(value < 0 or value > 1 for value in complete.values()):
             raise ValueError("Weights must be between 0 and 1")
-        if sum(complete.values()) <= 0:
-            raise ValueError("At least one detector weight must be greater than zero")
+        if not isclose(sum(complete.values()), 1.0, abs_tol=0.0001):
+            raise ValueError("Detector weights must total 100%")
         return complete
 
 
