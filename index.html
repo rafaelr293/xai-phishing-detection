@@ -253,17 +253,60 @@ function detectorLabel(name) {
     .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
+function renderTraversalSection(email) {
+  const traversals = (email.url_records || []).flatMap(record =>
+    (record.traversals || []).map(traversal => ({ ...traversal, source_url: record.url }))
+  );
+  if (!traversals.length) return "";
+
+  const traversalMarkup = traversals.map(traversal => {
+    const redirects = (traversal.redirect_chain || []).length
+      ? `<ol class="traversal-list">${traversal.redirect_chain.map(redirect => `
+          <li><span>${escapeHtml(redirect.from)}</span><span class="traversal-arrow">→</span><span>${escapeHtml(redirect.to)}</span></li>`).join("")}</ol>`
+      : '<p class="analysis-empty">No redirects recorded.</p>';
+    const blockedRequests = (traversal.blocked_requests || []).length
+      ? `<ul class="traversal-list">${traversal.blocked_requests.map(url => `<li>${escapeHtml(url)}</li>`).join("")}</ul>`
+      : '<p class="analysis-empty">No requests blocked.</p>';
+    const screenshot = traversal.screenshot_path && traversal.status === "COMPLETED"
+      ? `<img class="traversal-screenshot" src="${API_BASE}/api/emails/traversals/${encodeURIComponent(traversal.id)}/screenshot" alt="Captured final webpage screenshot">`
+      : '<p class="analysis-empty">No screenshot captured.</p>';
+
+    return `<article class="traversal-result">
+      <div class="detector-heading">
+        <h4>Traversal ${escapeHtml(traversal.id || "")}</h4>
+        <span class="detector-status">${escapeHtml(traversal.status || "UNKNOWN")}</span>
+      </div>
+      <dl class="traversal-meta">
+        <dt>Source URL</dt><dd>${escapeHtml(traversal.source_url || traversal.requested_url || "—")}</dd>
+        <dt>Final URL</dt><dd>${escapeHtml(traversal.final_url || "—")}</dd>
+        <dt>HTTP status</dt><dd>${escapeHtml(traversal.http_status ?? "—")}</dd>
+        <dt>Page title</dt><dd>${escapeHtml(traversal.page_title || "—")}</dd>
+      </dl>
+      ${traversal.error_message ? `<p class="analysis-error">${escapeHtml(traversal.error_message)}</p>` : ""}
+      <h4>Redirect chain (${(traversal.redirect_chain || []).length})</h4>
+      ${redirects}
+      <h4>Blocked requests (${(traversal.blocked_requests || []).length})</h4>
+      ${blockedRequests}
+      <h4>Captured final webpage</h4>
+      ${screenshot}
+    </article>`;
+  }).join("");
+
+  return `<section class="detector-section traversal-section">
+    <div class="detector-heading">
+      <h3>URL Traversal</h3>
+      <span class="detector-status">${traversals.length} RESULT${traversals.length === 1 ? "" : "S"}</span>
+    </div>
+    ${traversalMarkup}
+  </section>`;
+}
+
 function renderAnalysis(email) {
   const analyses = email.analyses || [];
   const detectorResults = analyses.flatMap(analysis => analysis.detectors || []);
   document.getElementById("analysis-modal-title").textContent = email.subject || "(No subject)";
 
-  if (!detectorResults.length) {
-    document.getElementById("analysis-content").innerHTML = '<p class="analysis-empty">No detector analysis is available for this email yet.</p>';
-    return;
-  }
-
-  document.getElementById("analysis-content").innerHTML = detectorResults.map(detector => {
+  const detectorMarkup = detectorResults.map(detector => {
     const indicators = detector.indicators || [];
     const evidence = JSON.stringify(detector.evidence || {}, null, 2);
     const indicatorMarkup = indicators.length
@@ -287,6 +330,14 @@ function renderAnalysis(email) {
       <pre class="analysis-evidence">${escapeHtml(evidence)}</pre>
     </section>`;
   }).join("");
+  const traversalMarkup = renderTraversalSection(email);
+
+  if (!detectorMarkup && !traversalMarkup) {
+    document.getElementById("analysis-content").innerHTML = '<p class="analysis-empty">No detector analysis is available for this email yet.</p>';
+    return;
+  }
+
+  document.getElementById("analysis-content").innerHTML = detectorMarkup + traversalMarkup;
 }
 
 function openAnalysisModal() {

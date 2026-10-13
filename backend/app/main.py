@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.api.routes.ingestion import router as ingestion_router
 from app.api.routes.emails import router as emails_router
+from app.api.routes.url_analysis import router as url_analysis_router
 
 settings = get_settings()
 app = FastAPI(title="XAI Phishing Detection API", version="0.1.0")
@@ -16,6 +17,7 @@ app.add_middleware(
 )
 app.include_router(ingestion_router)
 app.include_router(emails_router)
+app.include_router(url_analysis_router)
 
 
 @app.get("/api/health")

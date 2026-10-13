@@ -64,6 +64,30 @@ def get_email(email_id: UUID, db: Session = Depends(get_db)) -> dict:
         "plain_text": email.plain_text,
         "html_body": email.html_body,
         "urls": email.urls,
+        "url_records": [
+            {
+                "id": url_record.id,
+                "url": url_record.url,
+                "selected_for_traversal": url_record.selected_for_traversal,
+                "traversals": [
+                    {
+                        "id": traversal.id,
+                        "status": traversal.status.value,
+                        "requested_url": traversal.requested_url,
+                        "final_url": traversal.final_url,
+                        "http_status": traversal.http_status,
+                        "page_title": traversal.page_title,
+                        "redirect_chain": traversal.redirect_chain,
+                        "blocked_requests": traversal.blocked_requests,
+                        "screenshot_path": traversal.screenshot_path,
+                        "screenshot_sha256": traversal.screenshot_sha256,
+                        "error_message": traversal.error_message,
+                    }
+                    for traversal in url_record.traversals
+                ],
+            }
+            for url_record in email.url_records
+        ],
         "attachments": email.attachments,
         "analyses": [
             {

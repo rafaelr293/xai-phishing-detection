@@ -37,6 +37,42 @@ class Email(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     analyses: Mapped[list["EmailAnalysis"]] = relationship(back_populates="email", cascade="all, delete-orphan")
+    url_records: Mapped[list["EmailURL"]] = relationship(back_populates="email", cascade="all, delete-orphan")
+
+
+class EmailURL(Base):
+    __tablename__ = "email_urls"
+    __table_args__ = (UniqueConstraint("email_id", "url", name="uq_email_url"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    email_id: Mapped[UUID] = mapped_column(ForeignKey("emails.id"), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    selected_for_traversal: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    email: Mapped[Email] = relationship(back_populates="url_records")
+    traversals: Mapped[list["URLTraversal"]] = relationship(back_populates="email_url", cascade="all, delete-orphan")
+
+
+class URLTraversal(Base):
+    __tablename__ = "url_traversals"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    email_url_id: Mapped[UUID] = mapped_column(ForeignKey("email_urls.id"), index=True)
+    status: Mapped[ProcessingStatus] = mapped_column(default=ProcessingStatus.PENDING)
+    requested_url: Mapped[str] = mapped_column(Text)
+    final_url: Mapped[Optional[str]] = mapped_column(Text)
+    http_status: Mapped[Optional[int]] = mapped_column(Integer)
+    page_title: Mapped[Optional[str]] = mapped_column(Text)
+    redirect_chain: Mapped[list] = mapped_column(JSON, default=list)
+    blocked_requests: Mapped[list] = mapped_column(JSON, default=list)
+    screenshot_path: Mapped[Optional[str]] = mapped_column(Text)
+    screenshot_sha256: Mapped[Optional[str]] = mapped_column(String(64))
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    email_url: Mapped[EmailURL] = relationship(back_populates="traversals")
 
 
 class EmailAnalysis(Base):

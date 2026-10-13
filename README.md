@@ -53,6 +53,8 @@ To rerun the configured detector modules against every already-ingested email wh
 curl -X POST http://localhost:8000/api/ingestion/rerun-analysis
 ```
 
+URL traversal runs in the Playwright API container. Build and start it with `docker compose up -d --build api`. A URL must first be marked `selected_for_traversal` by the URL-risk module before `POST /api/emails/{email_id}/urls/{url_id}/traverse` will inspect it. Redirects and blocked requests are stored in PostgreSQL; screenshots are stored under `data/artifacts/screenshots` and can be retrieved through the traversal screenshot endpoint.
+
 Put `.eml` files in `data/inbox` before scanning. The backend records content hashes so scanning the same file again does not create a duplicate email.
 
 Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments. Detector results are persisted with the email analysis record.
