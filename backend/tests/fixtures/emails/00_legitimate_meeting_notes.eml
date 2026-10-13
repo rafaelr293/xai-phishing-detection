@@ -1,0 +1,22 @@
+From: jordan.lee@company.test
+To: analyst@company.test
+Subject: Notes from today's standup
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Hi team,
+
+Quick notes from standup:
+- Deploy window moved to Thursday 2pm
+- Please review the PR when you have a moment
+- No action needed today if you are busy with demos
+
+Agenda doc: https://example.com/docs/standup-notes
+
+Thanks,
+Jordan
+
+--kris-demo-boundary--

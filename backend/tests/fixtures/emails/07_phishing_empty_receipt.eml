@@ -1,0 +1,26 @@
+From: Amazon Support <order-support@amzon-secure-payment.test>
+To: analyst@company.test
+Subject: Your refund is ready — confirm within 1 hour
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Hello valued customer,
+
+A refund of $482.90 is pending. Confirm your card details within 1 hour or the refund will be cancelled.
+Use this secure link:
+https://example.com/notes
+
+A receipt file is attached.
+
+Customer Support
+
+--kris-demo-boundary
+Content-Type: text/plain
+Content-Disposition: attachment; filename="Refund_Receipt.txt"
+Content-Transfer-Encoding: base64
+
+
+--kris-demo-boundary--

@@ -1,0 +1,28 @@
+From: Online Banking <alerts@westpacc-secure-login.test>
+To: analyst@company.test
+Subject: Suspicious transfer blocked — verify now
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Dear customer,
+
+We blocked a suspicious transfer of $3,400 from your account.
+Verify the transaction immediately or the account will remain locked.
+
+Verify transfer: https://example.com/hash
+
+Your statement PDF is attached for review.
+
+Fraud Prevention Team
+(demo artifact sha256 prefix 5a838678058f)
+
+--kris-demo-boundary
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="Account_Statement.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK
+--kris-demo-boundary--

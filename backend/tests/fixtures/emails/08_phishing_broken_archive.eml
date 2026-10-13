@@ -1,0 +1,26 @@
+From: Delivery Desk <shipping@dhl-parcel-tracking.test>
+To: analyst@company.test
+Subject: Package held at customs — upload ID documents
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Dear recipient,
+
+Your parcel is held at customs. Upload a copy of your ID using the attached form package,
+or confirm delivery details here within 6 hours:
+https://example.com/broken
+
+Otherwise the package will be returned.
+
+Customs Notification Centre
+
+--kris-demo-boundary
+Content-Type: application/zip
+Content-Disposition: attachment; filename="Customs_Forms.zip"
+Content-Transfer-Encoding: base64
+
+UEsDBG5vdC1hLXZhbGlkLWNlbnRyYWwtZGlyZWN0b3J5
+--kris-demo-boundary--

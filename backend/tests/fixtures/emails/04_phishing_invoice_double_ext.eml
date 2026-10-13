@@ -1,0 +1,26 @@
+From: Accounts Payable <invoices@vendor-billing-portal.test>
+To: analyst@company.test
+Subject: Invoice #88421 overdue — pay immediately to avoid fees
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Dear Accounts,
+
+Invoice #88421 is overdue. A late fee will be applied in 12 hours.
+Open the attached invoice, review the balance, and complete payment using the link below.
+
+Pay now: https://example.com/invoice
+
+Accounts Payable
+
+--kris-demo-boundary
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="Invoice_88421.pdf.exe"
+Content-Transfer-Encoding: base64
+
+TVoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAA
+--kris-demo-boundary--

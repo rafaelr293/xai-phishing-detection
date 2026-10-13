@@ -1,0 +1,29 @@
+From: Security Centre <security-alert@secure-microsoft-login.test>
+To: analyst@company.test
+Subject: Urgent: Your account will be suspended within 24 hours
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Dear Customer,
+
+We detected unusual sign-in activity on your account.
+Your mailbox will be SUSPENDED within 24 hours unless you verify your identity immediately.
+
+Click here to reset your password and confirm ownership:
+https://example.com/login
+
+Failure to act will result in permanent loss of access.
+This is an automated message — do not reply.
+
+Account Protection Team
+
+--kris-demo-boundary
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="statement.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK
+--kris-demo-boundary--

@@ -1,18 +1,23 @@
-From: demo@sentinelai.test
+From: Legal Ops <contracts@docu-sign-secure.test>
 To: analyst@company.test
-Subject: PDF name with executable bytes
+Subject: Final notice: sign the NDA before access is removed
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="kris-demo-boundary"
 
 --kris-demo-boundary
 Content-Type: text/plain; charset="utf-8"
 
-Contract attached.
+Hello,
+
+Your shared workspace access will be removed tonight unless you sign the attached NDA.
+Open the PDF, review, and confirm your credentials at:
 https://example.org/contract
+
+DocuSign Services (demo sender — not affiliated with any real vendor)
 
 --kris-demo-boundary
 Content-Type: application/pdf
-Content-Disposition: attachment; filename="contract.pdf"
+Content-Disposition: attachment; filename="NDA_Final.pdf"
 Content-Transfer-Encoding: base64
 
 TVoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA

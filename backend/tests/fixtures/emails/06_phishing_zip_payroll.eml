@@ -1,0 +1,30 @@
+From: Finance <finance@shared-drive-notify.test>
+To: analyst@company.test
+Subject: Encrypted payroll package — password inside
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Hi,
+
+Please open the attached ZIP for this week's payroll export.
+The archive password is your employee ID. Enter it when prompted, then open the script to unlock the sheet.
+
+If the archive fails, re-authenticate here:
+https://example.com/files
+
+Finance Operations
+
+--kris-demo-boundary
+Content-Type: application/zip
+Content-Disposition: attachment; filename="Payroll_Export.zip"
+Content-Transfer-Encoding: base64
+
+UEsDBBQAAAAAABpOTl3TXXO6CgAAAAoAAAAKAAAAcmVhZG1lLnR4dHNhZmUgbm90ZXNQSwMEFAAA
+AAAAGk5OXSSasysUAAAAFAAAAAkAAAB1cGRhdGUuanNjb25zb2xlLmxvZygiZGVtbyIpO1BLAQIU
+ABQAAAAAABpOTl3TXXO6CgAAAAoAAAAKAAAAAAAAAAAAAACAAQAAAAByZWFkbWUudHh0UEsBAhQA
+FAAAAAAAGk5OXSSasysUAAAAFAAAAAkAAAAAAAAAAAAAAIABMgAAAHVwZGF0ZS5qc1BLBQYAAAAA
+AgACAG8AAABtAAAAAAA=
+--kris-demo-boundary--
