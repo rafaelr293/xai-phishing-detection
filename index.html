@@ -10,7 +10,7 @@
 
 <header class="topbar">
     <h1><span class="dot dot-cyan"></span> KRIT <span class="muted">/ inbox monitor</span></h1>
-  <button type="button" class="btn topbar-button" id="settings-button">Settings</button>
+  <button type="button" class="btn topbar-button" id="settings-button" aria-label="Open risk settings" title="Risk settings">&#9881;</button>
 </header>
 
 <main class="container">
@@ -233,14 +233,24 @@ function closeSettingsViewer() {
 function renderRiskWeightControls(weights) {
   riskWeightControls.innerHTML = Object.entries(riskWeightLabels).map(([name, label]) => {
     const percentage = Math.round((weights[name] ?? 0) * 100);
-    return `<label class="weight-control" for="weight-${name}">
-      <span class="weight-label"><span>${label}</span><output id="weight-output-${name}">${percentage}%</output></span>
-      <input id="weight-${name}" type="range" min="0" max="100" step="5" value="${percentage}" data-weight-name="${name}">
-    </label>`;
+    return `<div class="weight-control">
+      <label class="weight-label" for="weight-number-${name}">${label}</label>
+      <div class="weight-inputs">
+        <input id="weight-number-${name}" class="weight-number" type="number" min="0" max="100" step="1" value="${percentage}" data-weight-name="${name}" aria-label="${label} percentage">
+        <span class="weight-percent">%</span>
+        <input id="weight-${name}" type="range" min="0" max="100" step="1" value="${percentage}" data-weight-name="${name}" aria-label="${label} slider">
+      </div>
+    </div>`;
   }).join("");
   riskWeightControls.querySelectorAll("input[type=range]").forEach(input => {
     input.addEventListener("input", () => {
-      document.getElementById(`weight-output-${input.dataset.weightName}`).textContent = `${input.value}%`;
+      document.getElementById(`weight-number-${input.dataset.weightName}`).value = input.value;
+    });
+  });
+  riskWeightControls.querySelectorAll("input[type=number]").forEach(input => {
+    input.addEventListener("input", () => {
+      const value = Math.min(100, Math.max(0, Number(input.value) || 0));
+      document.getElementById(`weight-${input.dataset.weightName}`).value = value;
     });
   });
 }
