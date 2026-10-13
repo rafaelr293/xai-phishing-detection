@@ -161,9 +161,9 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
                     received_at=parsed.received_at,
                     url_records=[EmailURL(url=url) for url in parsed.urls],
                 )
-                email.analyses.append(_run_analysis(db, email, parsed))
                 db.add(email)
                 db.flush()
+                email.analyses.append(_run_analysis(db, email, parsed))
                 imported += 1
         except (OSError, ValueError):
             failed += 1
