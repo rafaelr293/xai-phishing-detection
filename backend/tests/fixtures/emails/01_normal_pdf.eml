@@ -1,0 +1,19 @@
+From: demo@sentinelai.test
+To: analyst@company.test
+Subject: Normal PDF attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Benign statement.
+https://example.com/login
+
+--kris-demo-boundary
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="statement.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK
+--kris-demo-boundary--

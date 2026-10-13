@@ -1,3 +1,7 @@
+networks:
+  db-net:
+  app-net:
+
 services:
   postgres:
     image: postgres:16
@@ -9,6 +13,8 @@ services:
       - "5432:5432"
     volumes:
       - phishing-postgres-data:/var/lib/postgresql/data
+    networks:
+      - db-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U phishing -d phishing_detection"]
       interval: 5s
@@ -32,6 +38,9 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+    networks:
+      - db-net
+      - app-net
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,6 +59,8 @@ services:
       - "8010"
     volumes:
       - ./data:/app/data
+    networks:
+      - app-net
 
   visual-worker:
     build:
@@ -62,6 +73,8 @@ services:
       - "8010"
     volumes:
       - ./data:/app/data
+    networks:
+      - app-net
 
 volumes:
   phishing-postgres-data:

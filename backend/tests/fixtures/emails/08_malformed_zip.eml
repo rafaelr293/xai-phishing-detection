@@ -1,0 +1,19 @@
+From: demo@sentinelai.test
+To: analyst@company.test
+Subject: Malformed ZIP attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Broken archive.
+https://example.com/broken
+
+--kris-demo-boundary
+Content-Type: application/zip
+Content-Disposition: attachment; filename="broken.zip"
+Content-Transfer-Encoding: base64
+
+UEsDBG5vdC1hLXZhbGlkLWNlbnRyYWwtZGlyZWN0b3J5
+--kris-demo-boundary--

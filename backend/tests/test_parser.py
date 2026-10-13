@@ -65,3 +65,51 @@ def test_parse_eml_lists_archive_members_without_extracting(tmp_path: Path) -> N
 
     assert parsed.attachments[0].detected_type == "zip_archive"
     assert parsed.attachments[0].archive_members == ["readme.txt", "update.js"]
+    assert parsed.attachments[0].archive_malformed is False
+
+
+def test_parse_eml_marks_malformed_zip_archive(tmp_path: Path) -> None:
+    malformed_zip = b"PK\x03\x04" + b"not-a-valid-zip-central-directory"
+    encoded_archive = base64.b64encode(malformed_zip).decode("ascii")
+    source = tmp_path / "bad-archive.eml"
+    source.write_text(
+        'From: sender@example.com\n'
+        'To: analyst@example.com\n'
+        'Subject: Bad archive\n'
+        'MIME-Version: 1.0\n'
+        'Content-Type: multipart/mixed; boundary="b"\n\n'
+        '--b\nContent-Type: application/zip\n'
+        'Content-Disposition: attachment; filename="broken.zip"\n'
+        'Content-Transfer-Encoding: base64\n\n'
+        f'{encoded_archive}\n--b--\n',
+        encoding="utf-8",
+    )
+
+    parsed = parse_eml(source, 1024 * 1024)
+
+    assert parsed.attachments[0].detected_type == "zip_archive"
+    assert parsed.attachments[0].archive_members == []
+    assert parsed.attachments[0].archive_malformed is True
+
+
+def test_parse_eml_sha256_matches_attachment_payload(tmp_path: Path) -> None:
+    payload = b"%PDF-1.4 hello"
+    encoded = base64.b64encode(payload).decode("ascii")
+    source = tmp_path / "hash.eml"
+    source.write_text(
+        'From: sender@example.com\n'
+        'To: analyst@example.com\n'
+        'Subject: Hash\n'
+        'MIME-Version: 1.0\n'
+        'Content-Type: multipart/mixed; boundary="b"\n\n'
+        '--b\nContent-Type: application/pdf\n'
+        'Content-Disposition: attachment; filename="ok.pdf"\n'
+        'Content-Transfer-Encoding: base64\n\n'
+        f'{encoded}\n--b--\n',
+        encoding="utf-8",
+    )
+
+    parsed = parse_eml(source, 1024 * 1024)
+
+    assert parsed.attachments[0].sha256 == __import__("hashlib").sha256(payload).hexdigest()
+    assert parsed.attachments[0].detected_type == "pdf"

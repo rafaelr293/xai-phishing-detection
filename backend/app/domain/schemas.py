@@ -14,6 +14,7 @@ class AttachmentData(BaseModel):
     sha256: str
     detected_type: str = "unknown"
     archive_members: list[str] = Field(default_factory=list)
+    archive_malformed: bool = False
 
 
 class ParsedEmail(BaseModel):

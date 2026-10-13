@@ -1,0 +1,20 @@
+From: demo@sentinelai.test
+To: analyst@company.test
+Subject: Normal PNG attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Logo attached.
+https://example.com/
+
+--kris-demo-boundary
+Content-Type: image/png
+Content-Disposition: attachment; filename="logo.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAA
+AABJRU5ErkJggg==
+--kris-demo-boundary--

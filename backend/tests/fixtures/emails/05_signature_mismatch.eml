@@ -1,0 +1,20 @@
+From: demo@sentinelai.test
+To: analyst@company.test
+Subject: PDF name with executable bytes
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Contract attached.
+https://example.org/contract
+
+--kris-demo-boundary
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="contract.pdf"
+Content-Transfer-Encoding: base64
+
+TVoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAA
+--kris-demo-boundary--
