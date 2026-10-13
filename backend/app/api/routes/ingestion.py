@@ -66,6 +66,10 @@ def _run_analysis(db: Session, email: Email, parsed):
             url_record = url_records.get(str(result.get("url", "")).strip().lower())
             if url_record is not None:
                 url_record.selected_for_traversal = str(result.get("label", "")).lower() == "phishing"
+        for indicator in url_result.indicators:
+            url_record = url_records.get(str(indicator.evidence.get("url", "")).strip().lower())
+            if url_record is not None:
+                indicator.evidence["url_id"] = str(url_record.id)
 
     assessment = risk_engine.assess(analysis_results, [detector.name for detector in detectors])
     explanations = explainability_engine.explain(assessment)

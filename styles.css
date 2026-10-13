@@ -264,6 +264,10 @@ body {
 .analysis-indicators { list-style: none; margin: 0; padding: 0; }
 .analysis-indicators li { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid #252932; color: #ccc; font-size: 12px; }
 .analysis-indicators li span:first-child { flex: 1; }
+.indicator-url { display: block; margin-top: 5px; color: var(--muted); font: 11px/1.45 monospace; overflow-wrap: anywhere; }
+.btn-small { margin: 0; padding: 5px 8px; font-size: 10px; white-space: nowrap; }
+.traversal-visual-analysis { margin-top: 16px; padding-top: 14px; border-top: 1px solid #252932; }
+.traversal-visual-analysis .analysis-indicators { margin-top: 8px; }
 .analysis-evidence { margin: 0; padding: 12px; max-height: 180px; overflow: auto; background: #0b0d12; border: 1px solid var(--line); color: #c7cbd3; font: 11px/1.55 monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .analysis-error { margin: 0; color: var(--critical); font-size: 12px; }
 .traversal-result { margin-top: 16px; padding-top: 14px; border-top: 1px solid #252932; }

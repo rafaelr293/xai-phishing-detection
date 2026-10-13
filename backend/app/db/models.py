@@ -68,6 +68,7 @@ class URLTraversal(Base):
     blocked_requests: Mapped[list] = mapped_column(JSON, default=list)
     screenshot_path: Mapped[Optional[str]] = mapped_column(Text)
     screenshot_sha256: Mapped[Optional[str]] = mapped_column(String(64))
+    visual_analysis: Mapped[dict] = mapped_column(JSON, default=dict)
     error_message: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

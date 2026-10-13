@@ -114,4 +114,5 @@ class URLTraversalResponse(BaseModel):
     blocked_requests: list[str] = Field(default_factory=list)
     screenshot_path: Optional[str] = None
     screenshot_sha256: Optional[str] = None
+    visual_analysis: dict = Field(default_factory=dict)
     error_message: Optional[str] = None

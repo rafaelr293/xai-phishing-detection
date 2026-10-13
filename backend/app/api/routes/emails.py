@@ -85,6 +85,7 @@ def get_email(email_id: UUID, db: Session = Depends(get_db)) -> dict:
                         "blocked_requests": traversal.blocked_requests,
                         "screenshot_path": traversal.screenshot_path,
                         "screenshot_sha256": traversal.screenshot_sha256,
+                        "visual_analysis": traversal.visual_analysis,
                         "error_message": traversal.error_message,
                     }
                     for traversal in url_record.traversals
