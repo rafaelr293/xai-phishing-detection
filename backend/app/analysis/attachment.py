@@ -54,9 +54,18 @@ class AttachmentAnalyzer:
                 )
 
             if attachment.detected_type == "unknown":
+                score += 15
                 confidence_penalty += 0.10
                 verification_failures.append(
                     {"type": "unknown_signature", "filename": filename}
+                )
+                indicators.append(
+                    _indicator(
+                        "unknown_attachment_type",
+                        "Attachment type could not be identified from its file signature",
+                        "low",
+                        {"filename": filename, "extension": extension or "none"},
+                    )
                 )
 
             if extension in HIGH_RISK_EXTENSIONS:

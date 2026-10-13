@@ -53,6 +53,8 @@ Attachment analysis is static only. It records hashes and metadata, checks risky
 
 Attachment confidence starts at `0.95` when attachments are present and decreases when verification checks fail, such as an unknown signature, unrecognized extension, or signature mismatch. It is capped at a minimum of `0.50` and is not a calibrated probability.
 
+Unknown attachment types add a low-severity risk indicator and a small `15`-point contribution, while known malicious signatures and executable extensions receive substantially higher scores.
+
 ### 5. View the static frontend
 
 You can open `index.html` directly in your browser:
