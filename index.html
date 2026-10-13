@@ -24,6 +24,7 @@
     <section class="toolbar">
         <input type="search" id="search" placeholder="Search sender or subject">
       <button type="button" class="btn btn-primary" id="scan-button">Scan inbox</button>
+        <button type="button" class="btn" id="rerun-analysis-button">Rerun analysis</button>
     </section>
 
     <div class="layout">
@@ -114,6 +115,7 @@ const levelLabel = {
 const body = document.getElementById("email-body");
 const search = document.getElementById("search");
 const scanButton = document.getElementById("scan-button");
+const rerunAnalysisButton = document.getElementById("rerun-analysis-button");
 const viewAnalysisButton = document.getElementById("view-analysis-button");
 const viewEmailButton = document.getElementById("view-email-button");
 const analysisModal = document.getElementById("analysis-modal");
@@ -366,6 +368,7 @@ async function loadEmails() {
 async function scanInbox() {
   setStatus("Scanning...");
   scanButton.disabled = true;
+  rerunAnalysisButton.disabled = true;
   try {
     const response = await fetch(`${API_BASE}/api/ingestion/scan`, { method: "POST" });
     if (!response.ok) throw new Error("Unable to scan inbox");
@@ -374,11 +377,30 @@ async function scanInbox() {
     setStatus("Retry scan");
   } finally {
     scanButton.disabled = false;
+    rerunAnalysisButton.disabled = false;
+  }
+}
+
+async function rerunAnalysis() {
+  rerunAnalysisButton.textContent = "Rerunning...";
+  rerunAnalysisButton.disabled = true;
+  scanButton.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/api/ingestion/rerun-analysis`, { method: "POST" });
+    if (!response.ok) throw new Error("Unable to rerun analysis");
+    await loadEmails();
+    rerunAnalysisButton.textContent = "Rerun analysis";
+  } catch (error) {
+    rerunAnalysisButton.textContent = "Retry analysis";
+  } finally {
+    rerunAnalysisButton.disabled = false;
+    scanButton.disabled = false;
   }
 }
 
 search.addEventListener("input", renderTable);
 scanButton.addEventListener("click", scanInbox);
+rerunAnalysisButton.addEventListener("click", rerunAnalysis);
 viewAnalysisButton.addEventListener("click", openAnalysisModal);
 viewEmailButton.addEventListener("click", openEmailModal);
 closeAnalysisModal.addEventListener("click", closeAnalysisViewer);

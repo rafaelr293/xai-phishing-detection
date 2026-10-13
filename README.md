@@ -47,6 +47,12 @@ The API is available at `http://localhost:8000`. Check `http://localhost:8000/ap
 curl -X POST http://localhost:8000/api/ingestion/scan
 ```
 
+To rerun the configured detector modules against every already-ingested email whose source file is still available:
+
+```bash
+curl -X POST http://localhost:8000/api/ingestion/rerun-analysis
+```
+
 Put `.eml` files in `data/inbox` before scanning. The backend records content hashes so scanning the same file again does not create a duplicate email.
 
 Attachment analysis is static only. It records hashes and metadata, checks risky extensions and filename patterns, compares safe file signatures, and lists ZIP archive members without extracting or executing attachments. Detector results are persisted with the email analysis record.

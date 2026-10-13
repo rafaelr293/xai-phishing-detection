@@ -67,3 +67,10 @@ class ScanResponse(BaseModel):
     imported: int
     skipped: int
     failed: int
+
+
+class RerunResponse(BaseModel):
+    status: str
+    requested: int
+    rerun: int
+    failed: int
