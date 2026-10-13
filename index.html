@@ -59,12 +59,34 @@
             <h4 class="evidence-title" id="d-evidence-title"></h4>
             <ul class="evidence-list" id="d-evidence"></ul>
 
-            <button class="btn btn-primary">View full email content</button>
+            <button class="btn btn-primary" id="view-email-button" type="button" disabled>View full email content</button>
             <button class="btn">Draft notification to recipient</button>
         </aside>
 
     </div>
 </main>
+
+  <div class="modal-backdrop" id="email-modal" hidden>
+    <section class="email-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header class="modal-header">
+        <div>
+          <span class="detail-label">EMAIL CONTENT</span>
+          <h2 id="modal-title"></h2>
+        </div>
+        <button class="modal-close" id="close-email-modal" type="button" aria-label="Close email content">×</button>
+      </header>
+      <div class="modal-meta" id="modal-meta"></div>
+      <div class="content-section">
+        <h3>Plain-text body</h3>
+        <pre id="modal-plain-text"></pre>
+      </div>
+      <div class="content-section">
+        <h3>HTML source</h3>
+        <pre id="modal-html-body"></pre>
+      </div>
+      <div class="content-section" id="modal-artifacts"></div>
+    </section>
+  </div>
 
 <script>
 const API_BASE = "http://localhost:8000";
@@ -78,8 +100,12 @@ const levelLabel = {
 const body = document.getElementById("email-body");
 const search = document.getElementById("search");
 const scanButton = document.getElementById("scan-button");
+const viewEmailButton = document.getElementById("view-email-button");
+const emailModal = document.getElementById("email-modal");
+const closeEmailModal = document.getElementById("close-email-modal");
 let emails = [];
 let selectedId = null;
+let selectedEmail = null;
 
 function getLevel(email) {
   return email.level || "pending";
@@ -146,7 +172,9 @@ function renderTable() {
 
 function showDetail(email) {
   const level = getLevel(email);
+  selectedEmail = email;
   selectedId = email.id;
+  viewEmailButton.disabled = !email.id;
   document.getElementById("detail-header").className = "detail-header " + level;
   document.getElementById("d-label").textContent = levelLabel[level];
   document.getElementById("d-subject").textContent = email.subject || "(No subject)";
@@ -157,6 +185,39 @@ function showDetail(email) {
     ? email.evidence.map(indicator => `<li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")
     : "<li><span>No detector evidence available yet.</span></li>";
   renderTable();
+}
+
+function renderEmailContent(email) {
+  const headers = Object.entries(email.headers || {})
+    .map(([name, value]) => `<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(value)}</dd>`)
+    .join("");
+  const urls = (email.urls || []).map(url => `<li>${escapeHtml(url)}</li>`).join("");
+  const attachments = (email.attachments || [])
+    .map(attachment => `<li>${escapeHtml(attachment.filename)} <span class="pts">${escapeHtml(attachment.content_type)} · ${attachment.size_bytes} bytes</span></li>`)
+    .join("");
+
+  document.getElementById("modal-title").textContent = email.subject || "(No subject)";
+  document.getElementById("modal-meta").innerHTML = `
+    <dl class="header-list">${headers || "<dt>From</dt><dd>Unknown sender</dd>"}</dl>`;
+  document.getElementById("modal-plain-text").textContent = email.plain_text || "No plain-text body.";
+  document.getElementById("modal-html-body").textContent = email.html_body || "No HTML body.";
+  document.getElementById("modal-artifacts").innerHTML = `
+    <h3>URLs (${(email.urls || []).length})</h3>
+    <ul class="artifact-list">${urls || "<li>None</li>"}</ul>
+    <h3>Attachments (${(email.attachments || []).length})</h3>
+    <ul class="artifact-list">${attachments || "<li>None</li>"}</ul>`;
+}
+
+function openEmailModal() {
+  if (!selectedEmail || !selectedEmail.id) return;
+  renderEmailContent(selectedEmail);
+  emailModal.hidden = false;
+  closeEmailModal.focus();
+}
+
+function closeEmailViewer() {
+  emailModal.hidden = true;
+  viewEmailButton.focus();
 }
 
 async function loadDetail(email) {
@@ -208,6 +269,14 @@ async function scanInbox() {
 
 search.addEventListener("input", renderTable);
 scanButton.addEventListener("click", scanInbox);
+viewEmailButton.addEventListener("click", openEmailModal);
+closeEmailModal.addEventListener("click", closeEmailViewer);
+emailModal.addEventListener("click", event => {
+  if (event.target === emailModal) closeEmailViewer();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !emailModal.hidden) closeEmailViewer();
+});
 
 loadEmails();
 </script>
