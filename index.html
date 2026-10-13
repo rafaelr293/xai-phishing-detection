@@ -502,6 +502,11 @@ async function scanInbox() {
 }
 
 async function rerunAnalysis() {
+  const confirmed = window.confirm(
+    "Rerun analysis will delete all stored emails, analyses, traversal results, and screenshots, then rebuild everything from the .eml files in data/inbox. Continue?"
+  );
+  if (!confirmed) return;
+
   rerunAnalysisButton.textContent = "Rerunning...";
   rerunAnalysisButton.disabled = true;
   scanButton.disabled = true;
