@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://phishing:phishing@localhost:5432/phishing_detection"
     ingestion_directory: Path = Path("./data/inbox")
     max_eml_size_bytes: int = 10 * 1024 * 1024
+    email_inference_directory: Path = Path("./Tan Files")
+    email_inference_module: str = "Email_Inference.py"
+    email_model_path: Optional[Path] = None
+    enable_email_nlp: bool = False
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
