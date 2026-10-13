@@ -52,7 +52,7 @@ The API is available at `http://localhost:8000`. Check `http://localhost:8000/ap
 curl -X POST http://localhost:8000/api/ingestion/scan
 ```
 
-To rerun the configured detector modules against every already-ingested email whose source file is still available:
+To rebuild the analysis database from the current `.eml` files, use the rerun endpoint. It deletes stored emails, analyses, URL records, traversal jobs, ingestion jobs, and screenshot artifacts before scanning `data/inbox` again:
 
 ```bash
 curl -X POST http://localhost:8000/api/ingestion/rerun-analysis

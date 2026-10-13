@@ -1,5 +1,4 @@
-from datetime import datetime
-from pathlib import Path
+import shutil
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,7 +13,7 @@ from app.analysis.visual import VisualDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
 from app.core.config import get_settings
 from app.db.base import get_db
-from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus
+from app.db.models import DetectorResult, Email, EmailAnalysis, EmailURL, IngestionJob, ProcessingStatus, URLTraversal
 from app.domain.schemas import AnalysisContext, RerunResponse, ScanResponse
 from app.ingestion.directory_ingestor import DirectoryIngestor
 
@@ -182,24 +181,26 @@ def scan_directory(db: Session = Depends(get_db)) -> ScanResponse:
 
 @router.post("/rerun-analysis", response_model=RerunResponse)
 def rerun_analysis(db: Session = Depends(get_db)) -> RerunResponse:
-    emails = db.query(Email).all()
-    rerun = 0
-    failed = 0
     settings = get_settings()
-    ingestor = DirectoryIngestor(settings)
-
-    for email in emails:
-        try:
-            parsed = ingestor.parse(Path(email.source_path))
-            _ensure_url_records(email, parsed.urls)
-            analysis = max(email.analyses, key=lambda item: item.created_at or datetime.min)
-            _refresh_analysis(db, email, analysis, parsed)
-            rerun += 1
-        except (OSError, ValueError):
-            failed += 1
-
+    db.query(DetectorResult).delete(synchronize_session=False)
+    db.query(URLTraversal).delete(synchronize_session=False)
+    db.query(EmailURL).delete(synchronize_session=False)
+    db.query(EmailAnalysis).delete(synchronize_session=False)
+    db.query(Email).delete(synchronize_session=False)
+    db.query(IngestionJob).delete(synchronize_session=False)
     db.commit()
-    return RerunResponse(status="COMPLETED" if failed == 0 else "PARTIAL", requested=len(emails), rerun=rerun, failed=failed)
+
+    screenshot_directory = settings.artifact_directory / "screenshots"
+    shutil.rmtree(screenshot_directory, ignore_errors=True)
+    screenshot_directory.mkdir(parents=True, exist_ok=True)
+
+    scan = scan_directory(db)
+    return RerunResponse(
+        status=scan.status,
+        requested=scan.discovered,
+        rerun=scan.imported,
+        failed=scan.failed,
+    )
 
 
 @router.get("/jobs/{job_id}")
