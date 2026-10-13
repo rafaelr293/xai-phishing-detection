@@ -58,7 +58,9 @@ To rerun the configured detector modules against every already-ingested email wh
 curl -X POST http://localhost:8000/api/ingestion/rerun-analysis
 ```
 
-URL traversal runs in the Playwright API container. Build and start it with `docker compose up -d --build api`. A URL must first be marked `selected_for_traversal` by the URL-risk module before `POST /api/emails/{email_id}/urls/{url_id}/traverse` will inspect it. Redirects and blocked requests are stored in PostgreSQL; screenshots are stored under `data/artifacts/screenshots` and can be retrieved through the traversal screenshot endpoint.
+URL traversal runs in the isolated browser worker. Build and start it with `docker compose up -d --build api browser-worker`. A URL must first be marked `selected_for_traversal` by the URL-risk module before `POST /api/emails/{email_id}/urls/{url_id}/traverse` creates a background job. Poll `GET /api/emails/traversals/{traversal_id}` for completion. Redirects and blocked requests are stored in PostgreSQL; screenshots are stored under `data/artifacts/screenshots` and can be retrieved through the traversal screenshot endpoint.
+
+When a traversal completes, the API calls the internal visual worker with the captured screenshot. Visual detector results are persisted with the email analysis; a visual-worker failure does not erase the completed traversal result.
 
 Visual analysis runs in a separate PyTorch worker. Build it with `docker compose build visual-worker`; its internal health endpoint is `/health` and its prediction endpoint is `/predict`. The API-to-worker job integration is the next step; the worker is isolated now so PyTorch is not installed in the API image.
 
