@@ -1,11 +1,12 @@
-FROM mcr.microsoft.com/playwright/python:v1.50.0-noble
+FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 COPY pyproject.toml .
-RUN pip install --no-cache-dir '.[ml]'
-
 COPY backend ./backend
-COPY Tan Files ./Tan Files
+RUN pip install --no-cache-dir '.[ml]' \
+	&& playwright install --with-deps chromium
+
+COPY ["Tan Files", "./Tan Files"]
 COPY alembic.ini .
 
 ENV PYTHONPATH=/app/backend
