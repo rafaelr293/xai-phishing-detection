@@ -1,22 +1,57 @@
+from datetime import datetime, timezone
+from pathlib import Path
 from uuid import UUID
 
-from pathlib import Path
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.base import get_db
+from app.db.base import SessionLocal, get_db
 from app.db.models import EmailURL, ProcessingStatus, URLTraversal
 from app.domain.schemas import URLTraversalResponse
-from app.url_analysis.traversal import URLTraversalService
+from app.browser_worker.client import BrowserWorkerClient
 
 router = APIRouter(prefix="/api/emails", tags=["url-analysis"])
 
 
-@router.post("/{email_id}/urls/{url_id}/traverse", response_model=URLTraversalResponse)
-def traverse_selected_url(email_id: UUID, url_id: UUID, db: Session = Depends(get_db)) -> URLTraversalResponse:
+def _run_traversal_job(traversal_id: UUID) -> None:
+    settings = get_settings()
+    with SessionLocal() as db:
+        traversal = db.get(URLTraversal, traversal_id)
+        if traversal is None:
+            return
+        traversal.status = ProcessingStatus.RUNNING
+        db.commit()
+        try:
+            if not settings.browser_worker_url:
+                raise RuntimeError("Browser worker URL is not configured")
+            output = BrowserWorkerClient(
+                settings.browser_worker_url,
+                settings.browser_worker_timeout_seconds,
+            ).traverse(traversal.requested_url, str(traversal.id))
+            traversal.status = ProcessingStatus.COMPLETED
+            traversal.final_url = output.get("final_url")
+            traversal.http_status = output.get("http_status")
+            traversal.page_title = output.get("page_title")
+            traversal.redirect_chain = output.get("redirect_chain", [])
+            traversal.blocked_requests = output.get("blocked_requests", [])
+            traversal.screenshot_path = output.get("screenshot_path")
+            traversal.screenshot_sha256 = output.get("screenshot_sha256")
+        except Exception as exc:
+            traversal.status = ProcessingStatus.FAILED
+            traversal.error_message = str(exc)
+        traversal.completed_at = datetime.now(timezone.utc)
+        db.commit()
+
+
+@router.post("/{email_id}/urls/{url_id}/traverse", response_model=URLTraversalResponse, status_code=202)
+def traverse_selected_url(
+    email_id: UUID,
+    url_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> URLTraversalResponse:
     email_url = db.query(EmailURL).filter(EmailURL.id == url_id, EmailURL.email_id == email_id).first()
     if email_url is None:
         raise HTTPException(status_code=404, detail="Email URL not found")
@@ -25,29 +60,34 @@ def traverse_selected_url(email_id: UUID, url_id: UUID, db: Session = Depends(ge
 
     traversal = URLTraversal(
         email_url_id=email_url.id,
-        status=ProcessingStatus.RUNNING,
+        status=ProcessingStatus.PENDING,
         requested_url=email_url.url,
     )
     db.add(traversal)
     db.commit()
     db.refresh(traversal)
 
-    try:
-        output = URLTraversalService(get_settings()).traverse(email_url.url, str(traversal.id))
-        traversal.status = ProcessingStatus.COMPLETED
-        traversal.final_url = output.final_url
-        traversal.http_status = output.http_status
-        traversal.page_title = output.page_title
-        traversal.redirect_chain = output.redirect_chain
-        traversal.blocked_requests = output.blocked_requests
-        traversal.screenshot_path = output.screenshot_path
-        traversal.screenshot_sha256 = output.screenshot_sha256
-    except (ValueError, RuntimeError) as exc:
-        traversal.status = ProcessingStatus.FAILED
-        traversal.error_message = str(exc)
+    background_tasks.add_task(_run_traversal_job, traversal.id)
+    return URLTraversalResponse(
+        traversal_id=traversal.id,
+        status=traversal.status.value,
+        requested_url=traversal.requested_url,
+        final_url=traversal.final_url,
+        http_status=traversal.http_status,
+        page_title=traversal.page_title,
+        redirect_chain=traversal.redirect_chain,
+        blocked_requests=traversal.blocked_requests,
+        screenshot_path=traversal.screenshot_path,
+        screenshot_sha256=traversal.screenshot_sha256,
+        error_message=traversal.error_message,
+    )
 
-    db.commit()
-    db.refresh(traversal)
+
+@router.get("/traversals/{traversal_id}", response_model=URLTraversalResponse)
+def get_traversal(traversal_id: UUID, db: Session = Depends(get_db)) -> URLTraversalResponse:
+    traversal = db.get(URLTraversal, traversal_id)
+    if traversal is None:
+        raise HTTPException(status_code=404, detail="Traversal not found")
     return URLTraversalResponse(
         traversal_id=traversal.id,
         status=traversal.status.value,

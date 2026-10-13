@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     browser_max_redirects: int = 10
     browser_viewport_width: int = 1440
     browser_viewport_height: int = 1000
+    browser_worker_url: Optional[str] = None
+    browser_worker_timeout_seconds: float = 45.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
