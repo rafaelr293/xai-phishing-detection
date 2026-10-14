@@ -77,7 +77,7 @@ curl -X PUT http://localhost:8000/api/settings/risk-weights \
 
 ### 7. Rerun from scratch
 
-The dashboard’s **Rerun analysis** button asks for confirmation. The endpoint permanently deletes stored emails, analyses, detector results, URL records, traversal jobs, ingestion jobs, and files under `data/artifacts/screenshots`, then imports and analyzes the current `.eml` files again:
+The dashboard’s **Rerun analysis** button asks for confirmation. The endpoint permanently deletes stored emails, analyses, detector results, URL records, traversal jobs, ingestion jobs, and files under `data/artifacts/screenshots` and `data/artifacts/image_analysis`, then imports and analyzes the current `.eml` files again:
 
 ```bash
 curl -X POST http://localhost:8000/api/ingestion/rerun-analysis
@@ -99,7 +99,7 @@ The browser worker follows the URL, records redirects and blocked requests, and 
 GET /api/emails/traversals/{traversal_id}
 ```
 
-When traversal completes, the API automatically sends the screenshot to the visual worker. Visual results are persisted on that specific traversal and shown after the dashboard refreshes.
+When traversal completes, the API automatically sends the screenshot to the visual worker. Visual results and Grad-CAM heatmaps are persisted on that specific traversal; heatmaps are stored under `data/artifacts/image_analysis` and shown in the full analysis menu after the dashboard refreshes.
 
 ### Troubleshooting and shutdown
 
