@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from app.analysis.risk_engine import url_analysis_status
 from app.db.base import get_db
 from app.db.models import Email, EmailAnalysis
 
@@ -22,6 +23,7 @@ def _summary(email: Email) -> dict:
     if analysis:
         for result in analysis.detector_results:
             evidence.extend(result.indicators or [])
+    status = url_analysis_status(analysis.status.value, email.url_records) if analysis else "PENDING"
     return {
         "id": email.id,
         "score": analysis.risk_score if analysis else None,
@@ -29,7 +31,7 @@ def _summary(email: Email) -> dict:
         "sender": email.sender,
         "subject": email.subject,
         "time": email.received_at or email.created_at,
-        "status": analysis.status.value if analysis else "PENDING",
+        "status": status,
         "evidence": evidence,
     }
 
@@ -42,7 +44,10 @@ def list_emails(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
-    query = db.query(Email).options(joinedload(Email.analyses).joinedload(EmailAnalysis.detector_results))
+    query = db.query(Email).options(
+        joinedload(Email.analyses).joinedload(EmailAnalysis.detector_results),
+        joinedload(Email.url_records),
+    )
     if sender:
         query = query.filter(Email.sender.ilike(f"%{sender}%"))
     if subject:
@@ -55,7 +60,10 @@ def list_emails(
 def get_email(email_id: UUID, db: Session = Depends(get_db)) -> dict:
     email = (
         db.query(Email)
-        .options(joinedload(Email.analyses).joinedload(EmailAnalysis.detector_results))
+        .options(
+            joinedload(Email.analyses).joinedload(EmailAnalysis.detector_results),
+            joinedload(Email.url_records),
+        )
         .filter(Email.id == email_id)
         .first()
     )
@@ -97,7 +105,7 @@ def get_email(email_id: UUID, db: Session = Depends(get_db)) -> dict:
         "analyses": [
             {
                 "id": analysis.id,
-                "status": analysis.status.value,
+                "status": url_analysis_status(analysis.status.value, email.url_records),
                 "risk_score": analysis.risk_score,
                 "risk_level": analysis.risk_level,
                 "aggregation_details": analysis.aggregation_details,
