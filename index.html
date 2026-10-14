@@ -352,6 +352,26 @@ function renderTable() {
   });
 }
 
+function summarizeEvidence(indicators) {
+  const summary = [];
+  const urlIndicators = indicators.filter(indicator => indicator.type === "suspicious_url");
+  summary.push(...indicators.filter(indicator => indicator.type !== "suspicious_url"));
+  if (urlIndicators.length === 1) {
+    summary.push(urlIndicators[0]);
+  } else if (urlIndicators.length > 1) {
+    const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+    const severity = urlIndicators.reduce((highest, indicator) =>
+      (severityOrder[indicator.severity] || 0) > (severityOrder[highest] || 0) ? indicator.severity : highest,
+    "low");
+    summary.push({
+      type: "suspicious_url_summary",
+      description: "URL risk model classified multiple destinations as phishing-like",
+      severity,
+    });
+  }
+  return summary;
+}
+
 function showDetail(email) {
   const level = getLevel(email);
   selectedEmail = email;
@@ -363,9 +383,10 @@ function showDetail(email) {
   document.getElementById("d-subject").textContent = email.subject || "(No subject)";
   document.getElementById("d-sender").textContent = email.sender || "Unknown sender";
   document.getElementById("d-score").textContent = getScore(email);
-  document.getElementById("d-evidence-title").textContent = `EVIDENCE (${(email.evidence || []).length})`;
-  document.getElementById("d-evidence").innerHTML = (email.evidence || []).length
-    ? email.evidence.map(indicator => `<li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")
+  const evidence = summarizeEvidence(email.evidence || []);
+  document.getElementById("d-evidence-title").textContent = `EVIDENCE (${evidence.length})`;
+  document.getElementById("d-evidence").innerHTML = evidence.length
+    ? evidence.map(indicator => `<li><span>${escapeHtml(indicator.description || indicator.type)}</span><span class="pts">${escapeHtml(indicator.severity || "")}</span></li>`).join("")
     : "<li><span>No detector evidence available yet.</span></li>";
   renderTable();
 }

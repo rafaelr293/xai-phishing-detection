@@ -195,9 +195,10 @@ def rerun_analysis(db: Session = Depends(get_db)) -> RerunResponse:
     db.query(IngestionJob).delete(synchronize_session=False)
     db.commit()
 
-    screenshot_directory = settings.artifact_directory / "screenshots"
-    shutil.rmtree(screenshot_directory, ignore_errors=True)
-    screenshot_directory.mkdir(parents=True, exist_ok=True)
+    for artifact_name in ("screenshots", "image_analysis"):
+        artifact_directory = settings.artifact_directory / artifact_name
+        shutil.rmtree(artifact_directory, ignore_errors=True)
+        artifact_directory.mkdir(parents=True, exist_ok=True)
 
     scan = scan_directory(db)
     return RerunResponse(
