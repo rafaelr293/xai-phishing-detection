@@ -31,14 +31,14 @@ def _detected_type(payload: bytes) -> str:
     return "unknown"
 
 
-def _archive_members(payload: bytes, detected_type: str) -> list[str]:
+def _archive_members(payload: bytes, detected_type: str) -> tuple[list[str], bool]:
     if detected_type != "zip_archive":
-        return []
+        return [], False
     try:
         with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-            return [member.filename for member in archive.infolist()[:MAX_ARCHIVE_MEMBERS]]
+            return [member.filename for member in archive.infolist()[:MAX_ARCHIVE_MEMBERS]], False
     except (OSError, zipfile.BadZipFile):
-        return []
+        return [], True
 
 
 def _part_text(part: Message) -> str:
@@ -69,6 +69,7 @@ def parse_eml(path: Path, max_size_bytes: int) -> ParsedEmail:
         payload = part.get_payload(decode=True) or b""
         if filename or part.get_content_disposition() == "attachment":
             detected_type = _detected_type(payload)
+            archive_members, archive_malformed = _archive_members(payload, detected_type)
             attachments.append(
                 AttachmentData(
                     filename=filename or "unnamed",
@@ -76,7 +77,8 @@ def parse_eml(path: Path, max_size_bytes: int) -> ParsedEmail:
                     size_bytes=len(payload),
                     sha256=hashlib.sha256(payload).hexdigest(),
                     detected_type=detected_type,
-                    archive_members=_archive_members(payload, detected_type),
+                    archive_members=archive_members,
+                    archive_malformed=archive_malformed,
                 )
             )
         elif part.get_content_type() == "text/plain":

@@ -1,0 +1,29 @@
+From: Payroll <payroll-updates@hr-company-benefits.test>
+To: analyst@company.test
+Subject: ACTION REQUIRED: Update direct deposit details today
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Hello,
+
+Payroll processing is on hold because your banking details could not be verified.
+Update your direct deposit information within 2 hours or your payment will be delayed.
+
+Secure update form:
+https://example.com/account/verify-now
+
+A company logo is attached for reference.
+
+Human Resources
+
+--kris-demo-boundary
+Content-Type: image/png
+Content-Disposition: attachment; filename="logo.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAA
+AABJRU5ErkJggg==
+--kris-demo-boundary--

@@ -9,7 +9,16 @@ SCRIPT_EXTENSIONS = {".js", ".jse", ".vbs", ".vbe", ".ps1", ".bat", ".cmd", ".ws
 MACRO_EXTENSIONS = {".docm", ".dotm", ".xlsm", ".xltm", ".pptm", ".ppsm"}
 WEB_EXTENSIONS = {".html", ".htm", ".svg"}
 SAFE_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".txt", ".csv"}
-RECOGNIZED_EXTENSIONS = HIGH_RISK_EXTENSIONS | SCRIPT_EXTENSIONS | MACRO_EXTENSIONS | WEB_EXTENSIONS | SAFE_EXTENSIONS | {".zip", ".docx", ".xlsx", ".pptx", ".rtf"}
+RECOGNIZED_EXTENSIONS = (
+    HIGH_RISK_EXTENSIONS
+    | SCRIPT_EXTENSIONS
+    | MACRO_EXTENSIONS
+    | WEB_EXTENSIONS
+    | SAFE_EXTENSIONS
+    | {".zip", ".docx", ".xlsx", ".pptx", ".rtf"}
+)
+# Soft SOC note for very large parts; whole-message size is still enforced by the parser.
+LARGE_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 
 def _indicator(indicator_type: str, description: str, severity: str, evidence: dict) -> Indicator:
@@ -165,6 +174,19 @@ class AttachmentAnalyzer:
                     )
                 )
 
+            if attachment.archive_malformed:
+                score += 40
+                confidence_penalty += 0.10
+                verification_failures.append({"type": "malformed_archive", "filename": filename})
+                indicators.append(
+                    _indicator(
+                        "malformed_archive",
+                        "Attachment has a ZIP signature but could not be inspected as an archive",
+                        "medium",
+                        {"filename": filename},
+                    )
+                )
+
             nested_risky = [
                 member
                 for member in attachment.archive_members
@@ -181,14 +203,24 @@ class AttachmentAnalyzer:
                     )
                 )
 
-            if extension in SAFE_EXTENSIONS and attachment.size_bytes == 0:
+            if attachment.size_bytes == 0:
                 score += 20
                 indicators.append(
                     _indicator(
                         "empty_attachment",
-                        "Attachment has a safe-looking extension but contains no data",
+                        "Attachment contains no data",
                         "low",
-                        {"filename": filename},
+                        {"filename": filename, "extension": extension or "none"},
+                    )
+                )
+            elif attachment.size_bytes >= LARGE_ATTACHMENT_BYTES:
+                score += 10
+                indicators.append(
+                    _indicator(
+                        "large_attachment",
+                        f"Attachment is unusually large ({attachment.size_bytes} bytes)",
+                        "low",
+                        {"filename": filename, "size_bytes": attachment.size_bytes},
                     )
                 )
 

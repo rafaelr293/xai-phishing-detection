@@ -1,10 +1,7 @@
 from dataclasses import asdict
-import os
-from pathlib import Path
-from uuid import UUID
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from uuid import UUID
 
 from app.core.config import get_settings
 from app.url_analysis.traversal import URLTraversalService

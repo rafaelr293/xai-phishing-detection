@@ -43,6 +43,14 @@ def _run_traversal_job(traversal_id: UUID) -> None:
         except Exception as exc:
             traversal.status = ProcessingStatus.FAILED
             traversal.error_message = str(exc)
+            if traversal.screenshot_path:
+                screenshot_file = settings.artifact_directory / traversal.screenshot_path
+                try:
+                    screenshot_file.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                traversal.screenshot_path = None
+                traversal.screenshot_sha256 = None
         traversal.completed_at = datetime.now(timezone.utc)
         db.commit()
 

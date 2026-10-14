@@ -1,0 +1,27 @@
+From: IT Helpdesk <it-support@internal-helpdesk-secure.test>
+To: analyst@company.test
+Subject: Mandatory security update — install before 5pm
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="kris-demo-boundary"
+
+--kris-demo-boundary
+Content-Type: text/plain; charset="utf-8"
+
+Attention employee,
+
+A critical security patch must be installed before 5:00 PM today.
+Download and run the attached updater, then enter your network password when prompted.
+
+If you ignore this message, VPN access will be revoked.
+More info: https://example.com/update
+
+IT Support Desk
+
+--kris-demo-boundary
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="SecurityUpdate.exe"
+Content-Transfer-Encoding: base64
+
+TVoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAA
+--kris-demo-boundary--

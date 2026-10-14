@@ -6,9 +6,7 @@ COPY backend ./backend
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends libgomp1 \
 	&& rm -rf /var/lib/apt/lists/* \
-	&& pip install --no-cache-dir '.[ml]' \
-	&& playwright install --with-deps chromium
-
+	&& pip install --no-cache-dir '.[ml]'
 COPY ["Tan Files", "./Tan Files"]
 COPY alembic.ini .
 
