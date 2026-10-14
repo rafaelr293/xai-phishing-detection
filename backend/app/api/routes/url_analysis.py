@@ -6,15 +6,19 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.analysis.explainability import ExplainabilityEngine
 from app.analysis.risk_engine import url_analysis_status
+from app.analysis.risk_engine import RiskAssessmentEngine
 from app.core.config import get_settings
 from app.db.base import SessionLocal, get_db
-from app.db.models import EmailURL, ProcessingStatus, URLTraversal
+from app.db.models import DetectorResult, EmailAnalysis, EmailURL, ProcessingStatus, URLTraversal
 from app.domain.schemas import DetectorResultData, URLTraversalResponse
 from app.browser_worker.client import BrowserWorkerClient
 from app.visual_worker_client import VisualWorkerClient
 
 router = APIRouter(prefix="/api/emails", tags=["url-analysis"])
+risk_engine = RiskAssessmentEngine()
+explainability_engine = ExplainabilityEngine()
 
 
 def _run_traversal_job(traversal_id: UUID) -> None:
@@ -52,7 +56,7 @@ def _run_traversal_job(traversal_id: UUID) -> None:
                     pass
                 traversal.screenshot_path = None
                 traversal.screenshot_sha256 = None
-            _refresh_email_status(traversal)
+            _refresh_email_analysis(traversal)
         traversal.completed_at = datetime.now(timezone.utc)
         db.commit()
 
@@ -81,7 +85,7 @@ def _run_visual_analysis(db: Session, traversal: URLTraversal, settings) -> None
     traversal.visual_analysis = result_data.model_dump()
 
 
-def _refresh_email_status(traversal: URLTraversal) -> None:
+def _refresh_email_analysis(traversal: URLTraversal) -> None:
     email = traversal.email_url.email
     if not email.analyses:
         return
@@ -89,10 +93,69 @@ def _refresh_email_status(traversal: URLTraversal) -> None:
         email.analyses,
         key=lambda item: item.updated_at or item.created_at or datetime.min.replace(tzinfo=timezone.utc),
     )
-    coverage = analysis.aggregation_details.get("coverage", {})
-    if coverage.get("failed_detectors") or coverage.get("missing_detectors"):
-        return
-    analysis.status = ProcessingStatus(url_analysis_status(analysis.status.value, email.url_records))
+    visual_results = []
+    visual_scores = []
+    visual_indicators = []
+    visual_failed = False
+    selected_records = [record for record in email.url_records if record.selected_for_traversal]
+    for record in selected_records:
+        for record_traversal in record.traversals:
+            visual = record_traversal.visual_analysis or {}
+            if visual.get("status") == "COMPLETED":
+                visual_scores.append(visual.get("risk_score"))
+                visual_indicators.extend(visual.get("indicators", []))
+                visual_results.extend(visual.get("evidence", {}).get("visual_results", []))
+            elif record_traversal.status == ProcessingStatus.COMPLETED.value:
+                visual_failed = True
+
+    complete_visuals = all(
+        any(
+            (record_traversal.visual_analysis or {}).get("status") == "COMPLETED"
+            for record_traversal in record.traversals
+        )
+        for record in selected_records
+    )
+    visual_status = "COMPLETED" if complete_visuals else "FAILED" if visual_failed and not visual_scores else "PARTIAL"
+    visual_result = next(
+        (result for result in analysis.detector_results if result.detector == "visual_analysis"),
+        None,
+    )
+    if visual_result is None:
+        visual_result = DetectorResult(detector="visual_analysis")
+        analysis.detector_results.append(visual_result)
+    visual_result.status = ProcessingStatus(visual_status)
+    visual_result.risk_score = max(visual_scores, default=None)
+    visual_result.confidence = None
+    visual_result.indicators = visual_indicators
+    visual_result.evidence = {
+        "screenshot_count": len(visual_results),
+        "visual_results": visual_results,
+        "risk_level": risk_engine.risk_level(visual_result.risk_score),
+        "calibrated_confidence": False,
+    }
+    visual_result.error_message = "One or more visual analyses failed" if visual_failed else None
+
+    results = [
+        DetectorResultData(
+            detector=result.detector,
+            status=result.status.value,
+            risk_score=result.risk_score,
+            confidence=result.confidence,
+            indicators=result.indicators,
+            evidence=result.evidence,
+            error_message=result.error_message,
+        )
+        for result in analysis.detector_results
+    ]
+    assessment = risk_engine.assess(results, [result.detector for result in results])
+    assessment.status = url_analysis_status(assessment.status, email.url_records)
+    explanations = explainability_engine.explain(assessment)
+    analysis.status = ProcessingStatus(assessment.status)
+    analysis.risk_score = assessment.final_score
+    analysis.risk_level = assessment.risk_level
+    analysis.aggregation_details = assessment.model_dump()
+    analysis.technical_explanation = explanations["technical"]
+    analysis.user_explanation = explanations["user"]
 
 
 @router.post("/{email_id}/urls/{url_id}/traverse", response_model=URLTraversalResponse, status_code=202)
