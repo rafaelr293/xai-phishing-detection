@@ -4,7 +4,7 @@ import importlib.machinery
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from app.domain.schemas import AnalysisContext, DetectorResultData, Indicator
 
@@ -64,6 +64,16 @@ class URLRiskDetector:
             return "medium"
         return "low"
 
+    @staticmethod
+    def _risk_score(probability: float, threshold: Optional[float]) -> int:
+        if threshold is None:
+            return round(probability * 100)
+        if probability < threshold:
+            return 0
+        if threshold >= 1:
+            return 100
+        return max(1, min(100, round(1 + ((probability - threshold) / (1 - threshold)) * 99)))
+
     def analyze(self, context: AnalysisContext) -> DetectorResultData:
         urls = context.email.urls
         if not urls:
@@ -76,14 +86,21 @@ class URLRiskDetector:
 
         module, pipeline = self._load_pipeline()
         rows = module.scan_urls(urls, pipeline).to_dict(orient="records")
-        probabilities = [float(row.get("phishing_probability", 0.0)) for row in rows]
-        max_probability = max(probabilities, default=0.0)
-        score = round(max_probability * 100)
+        highest_probability_row = max(rows, key=lambda row: float(row.get("phishing_probability", 0.0)), default=None)
+        max_probability = float(highest_probability_row.get("phishing_probability", 0.0)) if highest_probability_row else 0.0
+        max_probability = max(0.0, min(1.0, max_probability))
+        highest_threshold = highest_probability_row.get("threshold") if highest_probability_row else None
+        if highest_threshold is not None:
+            highest_threshold = max(0.0, min(1.0, float(highest_threshold)))
+        score = self._risk_score(max_probability, highest_threshold)
         indicators = [
             Indicator(
                 type="suspicious_url",
                 description="URL risk model classified a destination as phishing-like",
-                severity=self._risk_level(round(float(row.get("phishing_probability", 0.0)) * 100)),
+                severity=self._risk_level(self._risk_score(
+                    max(0.0, min(1.0, float(row.get("phishing_probability", 0.0)))),
+                    max(0.0, min(1.0, float(row["threshold"]))) if row.get("threshold") is not None else None,
+                )),
                 evidence={
                     "url": row.get("url"),
                     "canonical": row.get("canonical"),
