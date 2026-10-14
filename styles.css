@@ -379,6 +379,7 @@ body {
 .traversal-list li { display: flex; gap: 8px; margin: 6px 0; overflow-wrap: anywhere; }
 .traversal-arrow { color: var(--cyan); flex-shrink: 0; }
 .traversal-screenshot { display: block; width: 100%; max-height: 360px; object-fit: contain; object-position: top; background: #0b0d12; border: 1px solid var(--line); }
+.visual-heatmap { display: block; width: 100%; max-height: 360px; object-fit: contain; object-position: top; background: #0b0d12; border: 1px solid var(--line); }
 
 /* Narrow screens: stack panel under the table */
 @media (max-width: 900px) {

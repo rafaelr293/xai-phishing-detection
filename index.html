@@ -670,13 +670,16 @@ function renderDetectorPanel(detector, email) {
   return renderGenericDetectorPanel(detector, email);
 }
 
-function renderVisualAnalysis(visualAnalysis) {
+function renderVisualAnalysis(visualAnalysis, traversalId) {
   if (!visualAnalysis || !Object.keys(visualAnalysis).length) return "";
   const indicators = visualAnalysis.indicators || [];
   const level = (visualAnalysis.evidence || {}).risk_level || riskLevelFromScore(visualAnalysis.risk_score);
   const indicatorMarkup = indicators.length
     ? `<ul class="finding-list">${indicators.map(indicator => renderFindingCard(indicator)).join("")}</ul>`
     : '<p class="analysis-empty">No visual indicators returned.</p>';
+  const heatmap = (visualAnalysis.evidence?.visual_results || []).some(result => result.heatmap_path)
+    ? `<img class="visual-heatmap" src="${API_BASE}/api/emails/traversals/${encodeURIComponent(traversalId)}/heatmap" alt="Grad-CAM heatmap showing areas of model focus">`
+    : '<p class="analysis-empty">No model heatmap available.</p>';
   return `<div class="traversal-visual-analysis">
     <div class="detector-heading">
       <h4>Image analysis</h4>
@@ -685,6 +688,8 @@ function renderVisualAnalysis(visualAnalysis) {
     <div class="detector-metrics"><span>Risk score <strong>${visualAnalysis.risk_score ?? "—"}</strong></span></div>
     ${visualAnalysis.error_message ? `<p class="analysis-error">${escapeHtml(visualAnalysis.error_message)}</p>` : ""}
     ${indicatorMarkup}
+    <h4>Model focus heatmap</h4>
+    ${heatmap}
     ${renderTechnicalDetails(visualAnalysis.evidence || {})}
   </div>`;
 }
@@ -725,7 +730,7 @@ function renderTraversalSection(email) {
       ${blockedRequests}
       <h4>Captured final webpage</h4>
       ${screenshot}
-      ${renderVisualAnalysis(traversal.visual_analysis)}
+      ${renderVisualAnalysis(traversal.visual_analysis, traversal.id)}
     </article>`;
   }).join("");
 

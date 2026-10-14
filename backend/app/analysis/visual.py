@@ -19,6 +19,7 @@ class VisualDetector:
         self._model = model
         self._model_module = model_module
         self._device = None
+        self._explainability_module = None
 
     def _load_model(self) -> tuple[Any, Any, Any]:
         if self._model is not None and self._model_module is not None:
@@ -49,6 +50,27 @@ class VisualDetector:
         self._model_module = module
         self._device = device
         return self._model, self._device, self._model_module
+
+    def _load_explainability(self, model_module: Any) -> Any:
+        if self._explainability_module is not None:
+            return self._explainability_module
+        explainability_path = self.model_path.parent / "Visual_Explainability.py"
+        if not explainability_path.is_file():
+            return None
+        try:
+            import matplotlib
+            matplotlib.use("Agg", force=True)
+            sys.modules.setdefault("Visual_Model", model_module)
+            spec = importlib.util.spec_from_file_location("xai_visual_explainability", explainability_path)
+            if spec is None or spec.loader is None:
+                return None
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            spec.loader.exec_module(module)
+            self._explainability_module = module
+            return module
+        except (ImportError, OSError, RuntimeError):
+            return None
 
     @staticmethod
     def _risk_level(score: int) -> str:
@@ -90,24 +112,45 @@ class VisualDetector:
 
         model, device, model_module = self._load_model()
         transform = model_module.eval_transform
+        explainability_module = self._load_explainability(model_module)
+        gradcam = explainability_module.GradCAM(model) if explainability_module else None
         results = []
-        for url, image_path, traversal_id in inputs:
-            if not image_path.is_file():
-                results.append({"url": url, "traversal_id": traversal_id, "error": "Screenshot artifact not found"})
-                continue
-            image = Image.open(image_path).convert("RGB")
-            tensor = transform(image).unsqueeze(0).to(device)
-            with torch.no_grad():
-                probabilities = torch.softmax(model(tensor), dim=1)[0].cpu().tolist()
-            phishing_probability = float(probabilities[1])
-            results.append({
-                "url": url,
-                "traversal_id": traversal_id,
-                "image_path": str(image_path),
-                "label": "phishing" if phishing_probability >= 0.5 else "legitimate",
-                "phishing_probability": phishing_probability,
-                "legitimate_probability": float(probabilities[0]),
-            })
+        try:
+            for url, image_path, traversal_id in inputs:
+                if not image_path.is_file():
+                    results.append({"url": url, "traversal_id": traversal_id, "error": "Screenshot artifact not found"})
+                    continue
+                image = Image.open(image_path).convert("RGB")
+                tensor = transform(image).unsqueeze(0).to(device)
+                with torch.no_grad():
+                    probabilities = torch.softmax(model(tensor), dim=1)[0].cpu().tolist()
+                phishing_probability = float(probabilities[1])
+                result = {
+                    "url": url,
+                    "traversal_id": traversal_id,
+                    "image_path": str(image_path),
+                    "label": "phishing" if phishing_probability >= 0.5 else "legitimate",
+                    "phishing_probability": phishing_probability,
+                    "legitimate_probability": float(probabilities[0]),
+                }
+                if gradcam is not None:
+                    heatmap_path = self.artifact_directory / "image_analysis" / f"{traversal_id}_gradcam.png"
+                    try:
+                        explainability_module.explain_image(
+                            gradcam,
+                            image_path,
+                            device,
+                            heatmap_path,
+                            class_idx=1,
+                            show=False,
+                        )
+                        result["heatmap_path"] = str(heatmap_path.relative_to(self.artifact_directory))
+                    except (OSError, RuntimeError, ValueError) as exc:
+                        result["heatmap_error"] = str(exc)
+                results.append(result)
+        finally:
+            if gradcam is not None:
+                gradcam.remove()
 
         valid_results = [result for result in results if "phishing_probability" in result]
         max_probability = max((result["phishing_probability"] for result in valid_results), default=0.0)

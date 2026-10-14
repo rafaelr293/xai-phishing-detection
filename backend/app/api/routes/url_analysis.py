@@ -228,3 +228,19 @@ def get_traversal_screenshot(traversal_id: UUID, db: Session = Depends(get_db)) 
     if artifact_root not in screenshot_path.parents or not screenshot_path.is_file():
         raise HTTPException(status_code=404, detail="Screenshot not found")
     return FileResponse(screenshot_path, media_type="image/png", filename=screenshot_path.name)
+
+
+@router.get("/traversals/{traversal_id}/heatmap")
+def get_traversal_heatmap(traversal_id: UUID, db: Session = Depends(get_db)) -> FileResponse:
+    traversal = db.get(URLTraversal, traversal_id)
+    if traversal is None:
+        raise HTTPException(status_code=404, detail="Traversal not found")
+    visual_results = (traversal.visual_analysis or {}).get("evidence", {}).get("visual_results", [])
+    heatmap_path_value = next((result.get("heatmap_path") for result in visual_results if result.get("heatmap_path")), None)
+    if not heatmap_path_value:
+        raise HTTPException(status_code=404, detail="Heatmap not found")
+    artifact_root = get_settings().artifact_directory.resolve()
+    heatmap_path = (artifact_root / heatmap_path_value).resolve()
+    if artifact_root not in heatmap_path.parents or not heatmap_path.is_file():
+        raise HTTPException(status_code=404, detail="Heatmap not found")
+    return FileResponse(heatmap_path, media_type="image/png", filename=heatmap_path.name)
