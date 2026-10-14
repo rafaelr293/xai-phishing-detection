@@ -50,6 +50,16 @@ class EmailNLPDetector:
             return "medium"
         return "low"
 
+    @staticmethod
+    def _risk_score(probability: float, threshold: Optional[float]) -> int:
+        if threshold is None:
+            return round(probability * 100)
+        if probability < threshold:
+            return 0
+        if threshold >= 1:
+            return 100
+        return max(1, min(100, round(1 + ((probability - threshold) / (1 - threshold)) * 99)))
+
     def analyze(self, context: AnalysisContext) -> DetectorResultData:
         predictor = self._load_predictor()
         email = context.email
@@ -57,9 +67,11 @@ class EmailNLPDetector:
         prediction = predictor.predict(email.subject or "", body)
         probability = float(prediction.get("probability", prediction.get("phishing_probability", 0.0)))
         probability = max(0.0, min(1.0, probability))
-        score = round(probability * 100)
         label = str(prediction.get("label", "")).lower()
         threshold: Optional[float] = prediction.get("threshold")
+        if threshold is not None:
+            threshold = max(0.0, min(1.0, float(threshold)))
+        score = self._risk_score(probability, threshold)
         indicators = []
         if label == "phishing" or prediction.get("is_phishing") is True:
             indicators.append(
