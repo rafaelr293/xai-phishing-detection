@@ -56,7 +56,7 @@ def _run_traversal_job(traversal_id: UUID) -> None:
                     pass
                 traversal.screenshot_path = None
                 traversal.screenshot_sha256 = None
-            _refresh_email_analysis(traversal)
+        _refresh_email_analysis(traversal)
         traversal.completed_at = datetime.now(timezone.utc)
         db.commit()
 
