@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session
 from app.analysis.attachment import AttachmentAnalyzer
 from app.analysis.email_nlp import EmailNLPDetector
 from app.analysis.explainability import ExplainabilityEngine
-from app.analysis.risk_engine import RiskAssessmentEngine
-from app.analysis.risk_engine import DEFAULT_WEIGHTS
+from app.analysis.risk_engine import DEFAULT_WEIGHTS, RiskAssessmentEngine, url_analysis_status
 from app.analysis.url_risk import URLRiskDetector
 from app.analysis.visual import VisualDetector
 from app.analysis.orchestrator import AnalysisOrchestrator
@@ -76,6 +75,7 @@ def _run_analysis(db: Session, email: Email, parsed):
                 indicator.evidence["url_id"] = str(url_record.id)
 
     assessment = _risk_engine_for(db).assess(analysis_results, [detector.name for detector in detectors])
+    assessment.status = url_analysis_status(assessment.status, email.url_records)
     explanations = explainability_engine.explain(assessment)
     analysis = EmailAnalysis(
         status=ProcessingStatus(assessment.status),

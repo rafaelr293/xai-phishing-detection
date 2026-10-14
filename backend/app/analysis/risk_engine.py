@@ -14,6 +14,23 @@ DEFAULT_WEIGHTS = {
 }
 
 
+def url_analysis_status(status: str, url_records: list) -> str:
+    selected_records = [record for record in url_records if record.selected_for_traversal]
+    if not selected_records or status == "FAILED":
+        return status
+    all_complete = all(
+        any(
+            traversal.status == "COMPLETED"
+            and (traversal.visual_analysis or {}).get("status") == "COMPLETED"
+            for traversal in record.traversals
+        )
+        for record in selected_records
+    )
+    if status in {"COMPLETED", "PARTIAL"}:
+        return "COMPLETED" if all_complete else "PARTIAL"
+    return status
+
+
 class RiskAssessment(BaseModel):
     final_score: Optional[int] = Field(default=None, ge=0, le=100)
     risk_level: Optional[str] = None

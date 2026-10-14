@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.analysis.explainability import ExplainabilityEngine
 from app.analysis.risk_engine import DEFAULT_WEIGHTS, RiskAssessmentEngine
+from app.analysis.risk_engine import url_analysis_status
 from app.db.base import get_db
-from app.db.models import EmailAnalysis, ProcessingStatus, RiskSettings
+from app.db.models import Email, EmailAnalysis, ProcessingStatus, RiskSettings
 from app.domain.schemas import DetectorResultData
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -56,7 +57,10 @@ def update_risk_weights(payload: RiskWeightsUpdate, db: Session = Depends(get_db
     engine = RiskAssessmentEngine(payload.weights)
     explainability = ExplainabilityEngine()
     updated_analyses = 0
-    analyses = db.query(EmailAnalysis).options(joinedload(EmailAnalysis.detector_results)).all()
+    analyses = db.query(EmailAnalysis).options(
+        joinedload(EmailAnalysis.detector_results),
+        joinedload(EmailAnalysis.email).joinedload(Email.url_records),
+    ).all()
     for analysis in analyses:
         results = [
             DetectorResultData(
@@ -72,6 +76,7 @@ def update_risk_weights(payload: RiskWeightsUpdate, db: Session = Depends(get_db
         ]
         assessment = engine.assess(results, [result.detector for result in results])
         explanations = explainability.explain(assessment)
+        assessment.status = url_analysis_status(assessment.status, analysis.email.url_records)
         analysis.status = ProcessingStatus(assessment.status)
         analysis.risk_score = assessment.final_score
         analysis.risk_level = assessment.risk_level

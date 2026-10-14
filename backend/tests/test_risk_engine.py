@@ -1,5 +1,5 @@
 from app.analysis.explainability import ExplainabilityEngine
-from app.analysis.risk_engine import RiskAssessmentEngine
+from app.analysis.risk_engine import RiskAssessmentEngine, url_analysis_status
 from app.domain.schemas import DetectorResultData, Indicator
 
 
@@ -54,3 +54,19 @@ def test_explanation_uses_detector_evidence_and_mentions_partial_coverage() -> N
     assert "The domain was registered recently" in explanation["technical"]
     assert "Analysis coverage was partial" in explanation["technical"]
     assert "registered recently" in explanation["user"]
+
+
+def test_url_analysis_status_waits_for_traversal_and_visual_results() -> None:
+    class Record:
+        selected_for_traversal = True
+        traversals = []
+
+    assert url_analysis_status("COMPLETED", [Record()]) == "PARTIAL"
+
+    class Traversal:
+        status = "COMPLETED"
+        visual_analysis = {"status": "COMPLETED"}
+
+    record = Record()
+    record.traversals = [Traversal()]
+    assert url_analysis_status("PARTIAL", [record]) == "COMPLETED"

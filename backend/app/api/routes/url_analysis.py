@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.analysis.risk_engine import url_analysis_status
 from app.core.config import get_settings
 from app.db.base import SessionLocal, get_db
 from app.db.models import EmailURL, ProcessingStatus, URLTraversal
@@ -51,6 +52,7 @@ def _run_traversal_job(traversal_id: UUID) -> None:
                     pass
                 traversal.screenshot_path = None
                 traversal.screenshot_sha256 = None
+            _refresh_email_status(traversal)
         traversal.completed_at = datetime.now(timezone.utc)
         db.commit()
 
@@ -77,6 +79,20 @@ def _run_visual_analysis(db: Session, traversal: URLTraversal, settings) -> None
         )
 
     traversal.visual_analysis = result_data.model_dump()
+
+
+def _refresh_email_status(traversal: URLTraversal) -> None:
+    email = traversal.email_url.email
+    if not email.analyses:
+        return
+    analysis = max(
+        email.analyses,
+        key=lambda item: item.updated_at or item.created_at or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    coverage = analysis.aggregation_details.get("coverage", {})
+    if coverage.get("failed_detectors") or coverage.get("missing_detectors"):
+        return
+    analysis.status = ProcessingStatus(url_analysis_status(analysis.status.value, email.url_records))
 
 
 @router.post("/{email_id}/urls/{url_id}/traverse", response_model=URLTraversalResponse, status_code=202)
