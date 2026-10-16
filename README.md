@@ -2,6 +2,9 @@
 
 This repository contains the static SOC dashboard and the FastAPI backend foundation for the explainable phishing detection platform.
 
+See [docs/system-architecture.md](docs/system-architecture.md) for the system
+architecture diagram and the end-to-end analysis flow.
+
 ---
 
 ## Getting Started
